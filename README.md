@@ -11,6 +11,23 @@ Tested on Ubuntu (primary target); works anywhere the `tesseract` CLI is install
 
 > Do not enable this plugin together with `windows-ocr`: both would OCR the same image. Pick one per machine.
 
+## Quick install via an AI agent
+
+Hand this repository to any AI agent, or paste the instruction below, and the
+agent will install and verify the plugin for you:
+
+> Please install the dsh plugin in this repository by following
+> <https://github.com/maxwell-feng/dsh-tesseract-ocr/blob/main/agents-install.md>.
+> Run every preflight check, choose an install mode, then complete the
+> mandatory verification: attach an image to a text-only model session and
+> confirm the model answers with the recognized text.
+
+[`agents-install.md`](./agents-install.md) is a step-by-step guide written for
+AI agents: preflight checks (including installing Tesseract and language
+packs), both install modes (permanent profile patch / temporary `--patch`
+overlay), mandatory functional verification, and troubleshooting for the
+failure modes you are likely to hit. Manual install instructions are below.
+
 ## Why a plugin (not a skill)
 
 dsh skills are Markdown instruction files injected into the model context — they cannot execute code, cannot hook the request pipeline, and cannot stop an image from being serialized. This feature needs exactly that, so it is a cordis plugin that hooks two public seams of the `llm` service (same design as `windows-ocr`):
