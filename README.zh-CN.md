@@ -100,6 +100,10 @@ dsh --profile web --patch /home/you/tesseract-ocr/dev.patch.yml
 
 识别结果按附件 id 在 dsh 进程生命周期内缓存，重复轮次不会重复 OCR。
 
+## 临时文件自动清理
+
+每次 OCR 都会把输入图片写入系统临时目录下**新建的临时目录**（`tesseract-ocr-*`）。该目录在 `finally` 中自动删除——成功、OCR 报错、超时都会删——每次产生的图片文件不会残留。插件启动时还会清扫上次进程崩溃遗留的孤儿 `tesseract-ocr-*` 目录。除插件自己的临时目录和 dsh 附件库外，不写任何其他位置。
+
 ## 冒烟测试（不需要 dsh）
 
 ```bash

@@ -100,6 +100,16 @@ Each image block becomes a text block:
 
 Recognition text is cached per attachment id for the lifetime of the dsh process, so repeated turns do not re-run OCR.
 
+## Temp-file hygiene
+
+Every OCR run writes its input image into a **fresh temporary directory**
+(`tesseract-ocr-*` under the system temp dir). The directory is removed
+automatically in `finally` — on success, on OCR error, and on timeout — so no
+per-run image file survives. At plugin start, any orphaned `tesseract-ocr-*`
+directories left behind by a previously crashed process are swept as well.
+Nothing is written outside the plugin's own temporary directory and the dsh
+attachment store.
+
 ## Smoke test (no dsh needed)
 
 ```bash
