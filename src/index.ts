@@ -241,12 +241,19 @@ export function apply(ctx: Context, config: Config = {}): void {
     const dir = await fs.mkdtemp(join(tmpdir(), TEMP_PREFIX));
     const imagePath = join(dir, `input.${EXT_BY_MEDIA[mediaType] ?? "png"}`);
     try {
+      // Security: fixed filename inside a fresh mkdtemp dir; the extension
+      // comes from the EXT_BY_MEDIA whitelist with a png fallback. No
+      // user-controlled path reaches here.
       await fs.writeFile(imagePath, bytes);
       // tesseractBin may carry prefix args, e.g. "tesseract" or
       // "/usr/bin/tesseract" or (for tests) "node /path/to/mock.mjs".
       const [bin, ...prefixArgs] = tesseractBin.split(/\s+/).filter(Boolean);
       if (!bin) throw new Error("tesseractBin is empty");
       const args = [...prefixArgs, imagePath, "stdout", "-l", language, "--psm", String(psm)];
+      // Security: argv-array spawn without a shell — no command injection.
+      // The binary and every argument come from admin configuration and
+      // mkdtemp paths, never from model or attachment content. Do not
+      // switch to a string command or `shell: true`.
       return await new Promise<string>((resolve, reject) => {
         const child = spawn(bin, args, {
           windowsHide: true,
