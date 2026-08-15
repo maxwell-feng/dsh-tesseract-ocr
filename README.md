@@ -1,6 +1,6 @@
 # tesseract-ocr
 
-A [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (dsh) plugin that lets **text-only models** accept attached images: every image is recognized **locally** with [Tesseract OCR](https://github.com/tesseract-ocr/tesseract) and only the recognized **text** is sent to the model API. **Image bytes never leave your machine.**
+[DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (dsh) plugin that lets **text-only models** accept attached images: every image is recognized **locally** with [Tesseract OCR](https://github.com/tesseract-ocr/tesseract) and only the recognized **text** is sent to the model API. **Image bytes never leave your machine.**
 
 Tested on Ubuntu (primary target); works anywhere the `tesseract` CLI is installed (Linux, macOS, Windows).
 
