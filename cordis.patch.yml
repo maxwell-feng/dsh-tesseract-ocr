@@ -1,0 +1,20 @@
+# tesseract-ocr bundle patch: one insert row, applied after the base bundles.
+# "last write wins per row" — no other bundle targets the `tesseract-ocr` id.
+- insert:
+    - id: tesseract-ocr
+      name: 'tesseract-ocr'
+      config:
+        # Tesseract language(s), "+"-joined, e.g. "eng", "chi_sim", "eng+chi_sim".
+        language: eng
+        # True (default): genuine vision models receive images untouched.
+        # False: every image goes through OCR, regardless of model capability.
+        passthrough: true
+        # tesseract CLI path; extra prefix args allowed (space-separated),
+        # e.g. "tesseract" or "/usr/bin/tesseract".
+        tesseractBin: tesseract
+        # Page segmentation mode (tesseract --psm).
+        psm: 3
+        # Per-image OCR timeout in milliseconds.
+        timeoutMs: 60000
+        # Max cached OCR results (keyed by attachment id) to bound memory.
+        maxCacheEntries: 200
