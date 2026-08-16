@@ -142,23 +142,25 @@ directories from a crashed process are swept at plugin start.
 
 The dsh.so submission checker (https://www.dsh.so/zh/submit) runs automated
 static heuristics and attaches the report to the submission Issue for human
-review. It is expected to flag this plugin with 2 Critical
-(`node:child_process`) and 2 Warning (`fs.writeFile`) findings. Those are
-**existence checks, not vulnerabilities in context**; paste the note below
-into the submission so the reviewer can close them:
+review. It is expected to flag this plugin with Critical findings for
+`node:child_process` usage and Warning findings for `fs.writeFile` (exact
+counts vary with the scanned version). Those are **existence checks, not
+vulnerabilities in context**; paste the note below into the submission so the
+reviewer can close them:
 
-> **Security note for the automated scan findings (2 Critical / 2 Warning):**
+> **Security note for the automated scan findings (Critical `node:child_process` / Warning `fs.writeFile`):**
 > Both findings are static existence checks, not vulnerabilities in context:
 > - `node:child_process` (Critical): the plugin must spawn the OCR engine
 >   (`tesseract`). The spawn call uses an **argv array without a shell**, so
 >   there is no command-injection surface; the binary and all arguments come
 >   from admin-controlled config and `mkdtemp`-generated temp paths — never
->   from model or attachment content.
+>   from model or attachment content. On timeout the child is terminated
+>   (SIGTERM→SIGKILL, `taskkill /t /f` on Windows) and awaited before cleanup.
 > - `fs.writeFile` (Warning): the plugin writes the image to a fixed filename
 >   inside a **fresh `mkdtemp` directory**; the extension comes from a
 >   whitelist map with a `png` fallback. No user-controlled path reaches the
 >   write.
-> Every temp directory is removed in `finally` (success/error/timeout) and
-> orphaned dirs are swept at startup. The plugin makes **no network requests**
-> and has **zero runtime dependencies**. Independent deep audit (Mimosa):
-> 0 findings, 0 vulnerable packages.
+> Every temp directory is removed in `finally` (success/error/timeout, after
+> the child exits) and orphaned dirs are swept at startup. The plugin makes
+> **no network requests** and has **zero runtime dependencies**. Independent
+> deep audit (Mimosa): 0 findings, 0 vulnerable packages.
