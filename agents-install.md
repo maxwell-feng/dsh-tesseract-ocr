@@ -13,8 +13,8 @@ attached image.
   the model API.
 - **Image bytes never leave the machine.** Fail-closed: if the plugin is not
   loaded, image attachments are refused (never uploaded).
-- Genuine vision models pass images through untouched by default
-  (`passthrough: true`).
+- Genuine vision models pass images through untouched only when
+  `passthrough: true` (default is `false`: OCR everything).
 - Do **not** enable together with `windows-ocr` on the same machine — both
   would OCR the same image.
 
@@ -55,7 +55,7 @@ URL** (a bare `C:/...` path is parsed as the `c:` URL scheme).
          name: '/home/you/tesseract-ocr/lib/index.js'
          config:
            language: eng+chi_sim
-           passthrough: true
+           passthrough: false
            psm: 3
            timeoutMs: 60000
            maxCacheEntries: 200
@@ -126,8 +126,8 @@ text-only and image attachments are refused again (fail-closed).
 | Key | Default | Meaning |
 |---|---|---|
 | `language` | `eng` | Tesseract languages, `+`-joined (`eng`, `chi_sim`, `eng+chi_sim`, …) |
-| `passthrough` | `true` | `true`: vision models receive images untouched; `false`: OCR everything |
-| `tesseractBin` | `tesseract` | CLI path; space-separated prefix args allowed |
+| `passthrough` | `false` | `false` (default): OCR every image; `true`: vision models receive images untouched |
+| `tesseractBin` | `tesseract` | CLI path; quote paths with spaces, e.g. `"C:\Program Files\Tesseract-OCR\tesseract.exe"` |
 | `psm` | `3` | page segmentation mode (`tesseract --psm`) |
 | `timeoutMs` | `60000` | per-image OCR timeout |
 | `maxCacheEntries` | `200` | OCR cache bound (keyed by attachment id) |

@@ -2,15 +2,15 @@
 # "last write wins per row" — no other bundle targets the `tesseract-ocr` id.
 - insert:
     - id: tesseract-ocr
-      name: 'tesseract-ocr'
+      name: '@maxwell-feng/dsh-tesseract-ocr'
       config:
         # Tesseract language(s), "+"-joined, e.g. "eng", "chi_sim", "eng+chi_sim".
         language: eng
-        # True (default): genuine vision models receive images untouched.
-        # False: every image goes through OCR, regardless of model capability.
-        passthrough: true
-        # tesseract CLI path; extra prefix args allowed (space-separated),
-        # e.g. "tesseract" or "/usr/bin/tesseract".
+        # Privacy-first default: every image is OCR'd. Set true only when you
+        # intentionally want genuine vision models to receive original bytes.
+        passthrough: false
+        # tesseract CLI path. Quote paths that contain spaces, e.g.
+        # "C:\Program Files\Tesseract-OCR\tesseract.exe"
         tesseractBin: tesseract
         # Page segmentation mode (tesseract --psm).
         psm: 3
