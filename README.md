@@ -1,13 +1,15 @@
 # tesseract-ocr
 
-[DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (dsh) plugin that lets **text-only models** accept attached images: every image is recognized **locally** with [Tesseract OCR](https://github.com/tesseract-ocr/tesseract) and only the recognized **text** is sent to the model API. **Image bytes never leave your machine.**
+[DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (dsh) plugin that lets **text-only models** accept attached images: every image is recognized **locally** with [Tesseract OCR](https://github.com/tesseract-ocr/tesseract) and only the recognized **text** is sent to the model API.
+
+**Privacy default:** image bytes are OCR'd locally and not sent to the provider. Set `passthrough: true` only if you intentionally want genuine vision models to receive original image bytes.
 
 Tested on Ubuntu (primary target); works anywhere the `tesseract` CLI is installed (Linux, macOS, Windows).
 
 - No configuration changes to your models — no `input: [text, image]` hacks in `settings.yaml`.
-- Works with any provider/model in dsh; OCR applies only to text models.
-- Genuine vision models (declared image capability) pass images through untouched by default.
-- Fail-closed: if the plugin is not loaded, models stay text-only and image attachments are refused — nothing can silently leak.
+- Works with any provider/model in dsh; by default every attached image is OCR'd before the request leaves the machine.
+- Vision-model passthrough is **opt-in** (`passthrough: true`).
+- Fail-closed: if the plugin is not loaded, models stay text-only and image attachments are refused — nothing can silently leak. Missing attachments are replaced with a refusal text block (never left as raw `image`).
 
 > Do not enable this plugin together with `windows-ocr`: both would OCR the same image. Pick one per machine.
 
@@ -87,10 +89,10 @@ Append to your profile's `cordis.patch.yml` (e.g. `~/.dsh/profiles/web/cordis.pa
       name: '/home/you/tesseract-ocr/lib/index.js'
       config:
         language: eng+chi_sim
-        passthrough: true
+        passthrough: false
 ```
 
-Then restart `dsh web`. Remove the rows to uninstall — nothing else is touched.
+Then restart `dsh web`. Remove the rows to uninstall — the plugin restores the original `llm` / adapter methods on unload.
 
 ### Temporary: `--patch` overlay
 
@@ -112,18 +114,18 @@ All settings live in the patch row `tesseract-ocr`:
 | Key | Default | Meaning |
 |---|---|---|
 | `language` | `eng` | Tesseract language(s), `+`-joined, e.g. `eng`, `chi_sim`, `eng+chi_sim` |
-| `passthrough` | `true` | `true`: genuine vision models receive images untouched; `false`: OCR everything |
-| `tesseractBin` | `tesseract` | CLI path; space-separated prefix args allowed, e.g. `/usr/bin/tesseract` |
+| `passthrough` | `false` | `false` (default): OCR every image. `true`: genuine vision models receive images untouched |
+| `tesseractBin` | `tesseract` | CLI path; quote paths with spaces, e.g. `"C:\Program Files\Tesseract-OCR\tesseract.exe"` |
 | `psm` | `3` | Page segmentation mode (`tesseract --psm`) |
 | `timeoutMs` | `60000` | Per-image OCR timeout |
 | `maxCacheEntries` | `200` | Bound on the per-run OCR cache (keyed by attachment id) |
 
 ## How the model sees the image
 
-Each image block becomes a text block:
+Each image block becomes a text block (local filenames are **not** forwarded):
 
 ```
-<image_ocr name="photo.png">
+<image_ocr>
 …recognized lines…
 </image_ocr>
 ```
@@ -133,12 +135,13 @@ Recognition text is cached per attachment id for the lifetime of the dsh process
 ## Temp-file hygiene
 
 Every OCR run writes its input image into a **fresh temporary directory**
-(`tesseract-ocr-*` under the system temp dir). The directory is removed
-automatically in `finally` — on success, on OCR error, and on timeout — so no
-per-run image file survives. At plugin start, any orphaned `tesseract-ocr-*`
-directories left behind by a previously crashed process are swept as well.
-Nothing is written outside the plugin's own temporary directory and the dsh
-attachment store.
+(`tesseract-ocr-*` under the system temp dir). On timeout the child process is
+terminated and awaited before cleanup. The directory is removed in `finally`
+(with one retry and a warning log on failure) — on success, on OCR error, and
+on timeout — so no per-run image file survives. At plugin start, any orphaned
+`tesseract-ocr-*` directories left behind by a previously crashed process are
+swept as well. Nothing is written outside the plugin's own temporary directory
+and the dsh attachment store.
 
 ## Smoke test (no dsh needed)
 
@@ -161,8 +164,9 @@ Exit 0 with the recognized text means Tesseract is ready.
 - Recognition quality depends on the installed language packs and `psm`; tune `language`/`psm` per use case.
 - Image formats depend on the Tesseract/Leptonica build: PNG/JPEG/TIFF/BMP are safe; WebP/GIF may require additional Leptonica support.
 - Cache is per process; a long-lived session keeps OCR text cached, bounded by `maxCacheEntries`.
-- Hot reload (HMR) replaces adapters; the plugin re-wraps new adapters on `llm/adapters-updated`, but a full restart is the safe path after any dsh update.
+- Hot reload (HMR) replaces adapters; the plugin re-wraps new adapters on `llm/adapters-updated` and restores the original methods on unload. A full restart is still the safest path after any dsh update.
 - If the plugin is removed, image attachments to text models are refused again (fail-closed), not uploaded.
+- Package name on npm is `@maxwell-feng/dsh-tesseract-ocr` (scoped) to avoid colliding with the unrelated `tesseract-ocr` package.
 
 ## License
 

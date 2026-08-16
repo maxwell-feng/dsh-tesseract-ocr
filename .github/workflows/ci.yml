@@ -1,0 +1,37 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Build and run unit tests
+        run: npm test
+      - name: Install Tesseract
+        run: sudo apt-get update && sudo apt-get install -y tesseract-ocr
+      - name: Real Tesseract smoke (PNG)
+        run: |
+          python3 - <<'PY'
+          import struct, zlib, subprocess, pathlib
+          # Minimal 200x60 white PNG with black "OCR" pixels is overkill;
+          # write a tiny valid PNG and assert tesseract exits 0.
+          def chunk(tag, data):
+              return struct.pack(">I", len(data)) + tag + data + struct.pack(">I", zlib.crc32(tag + data) & 0xffffffff)
+          raw = b"".join(b"\x00" + bytes([255] * 3 * 8) for _ in range(8))
+          png = b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", struct.pack(">IIBBBBB", 8, 8, 8, 2, 0, 0, 0)) + chunk(b"IDAT", zlib.compress(raw)) + chunk(b"IEND", b"")
+          path = pathlib.Path("/tmp/ocr-smoke.png")
+          path.write_bytes(png)
+          subprocess.check_call(["tesseract", str(path), "stdout", "-l", "eng", "--psm", "3"])
+          print("tesseract smoke ok")
+          PY

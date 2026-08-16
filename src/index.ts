@@ -3,7 +3,7 @@
 // Goal: when a user attaches an image while a text-only model is selected,
 // recognize the image locally with the Tesseract CLI and send only the
 // recognized text to the model. The image bytes are read from the local
-// attachment store and never leave the machine.
+// attachment store and never leave the machine for OCR paths.
 //
 // The design mirrors windows-ocr (same two official seams on the `llm`
 // service), only the OCR engine differs:
@@ -21,16 +21,18 @@
 //     adapter's own image check (`containsImage`) is false, no attachment
 //     bytes are serialized, and no image_url is ever built.
 //
-// Genuine vision models (whose *unshimmed* capabilities include "image") pass
-// through untouched unless `passthrough: false`.
+// By default every image is OCR'd (`passthrough: false`). Set
+// `passthrough: true` only when you intentionally want genuine vision models
+// to receive original image bytes.
 //
 // Temp-file hygiene: every OCR run writes its image into a fresh temporary
 // directory (tesseract-ocr-*) that is removed in `finally` — on success, on
-// error, and on timeout. At plugin start we also sweep orphaned
-// tesseract-ocr-* directories left behind by a crashed process.
+// error, and on timeout (after waiting for the child to exit). At plugin start
+// we also sweep orphaned tesseract-ocr-* directories left behind by a crashed
+// process. Hot-unload restores the original llm/adapter methods.
 
 import type { Context } from "@deepseek-ai/cordis";
-import { spawn } from "node:child_process";
+import { spawn, type ChildProcess } from "node:child_process";
 import { lstatSync, readdirSync, promises as fs, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -123,6 +125,8 @@ const EXT_BY_MEDIA: Record<string, string> = {
 };
 
 const TEMP_PREFIX = "tesseract-ocr-";
+const MISSING_ATTACHMENT_TEXT =
+  "(OCR: missing attachment — image refused)";
 
 /** Remove temp directories left behind by a previously crashed process. */
 function sweepOrphanTempDirs(): void {
@@ -147,12 +151,98 @@ function sweepOrphanTempDirs(): void {
   }
 }
 
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * Split a CLI spec into argv tokens, respecting double/single quotes so
+ * Windows paths like `"C:\Program Files\Tesseract-OCR\tesseract.exe"` work.
+ * Unquoted whitespace still separates prefix args (for test mocks:
+ * `node /path/to/mock.mjs`).
+ */
+export function parseCommandSpec(spec: string): string[] {
+  const tokens: string[] = [];
+  const re = /"([^"]*)"|'([^']*)'|(\S+)/g;
+  let match: RegExpExecArray | null;
+  while ((match = re.exec(spec)) !== null) {
+    const token = match[1] ?? match[2] ?? match[3];
+    if (token !== undefined && token.length > 0) tokens.push(token);
+  }
+  return tokens;
+}
+
+/** Wait for a child to exit after timeout/kill, so temp files can be unlinked. */
+async function terminateChild(child: ChildProcess): Promise<void> {
+  if (child.exitCode !== null || child.signalCode !== null) return;
+
+  const closed = new Promise<void>((resolve) => {
+    child.once("close", () => resolve());
+  });
+
+  try {
+    if (process.platform === "win32" && typeof child.pid === "number") {
+      spawn("taskkill", ["/pid", String(child.pid), "/t", "/f"], {
+        windowsHide: true,
+        stdio: "ignore",
+      }).unref();
+    } else {
+      try {
+        child.kill("SIGTERM");
+      } catch {
+        // already gone
+      }
+      void sleep(500).then(() => {
+        if (child.exitCode === null && child.signalCode === null) {
+          try {
+            child.kill("SIGKILL");
+          } catch {
+            // already gone
+          }
+        }
+      });
+    }
+  } catch {
+    // best-effort
+  }
+
+  await Promise.race([closed, sleep(2000)]);
+}
+
+async function removeTempDir(
+  dir: string,
+  warn?: (message: string, ...args: unknown[]) => void,
+): Promise<void> {
+  try {
+    await fs.rm(dir, { recursive: true, force: true });
+    return;
+  } catch (error) {
+    warn?.(
+      "[tesseract-ocr] temp dir remove failed (retrying): %s (%s)",
+      dir,
+      error instanceof Error ? error.message : String(error),
+    );
+  }
+  await sleep(200);
+  try {
+    await fs.rm(dir, { recursive: true, force: true });
+  } catch (error) {
+    warn?.(
+      "[tesseract-ocr] temp dir remove failed: %s (%s)",
+      dir,
+      error instanceof Error ? error.message : String(error),
+    );
+  }
+}
+
 export function apply(ctx: Context, config: Config = {}): void {
   const language =
     typeof config.language === "string" && config.language.length > 0
       ? config.language
       : "eng";
-  const passthrough = config.passthrough !== false;
+  // Privacy-first default: OCR every image unless the admin explicitly opts
+  // into vision-model passthrough.
+  const passthrough = config.passthrough === true;
   const tesseractBin =
     typeof config.tesseractBin === "string" && config.tesseractBin.length > 0
       ? config.tesseractBin
@@ -177,29 +267,37 @@ export function apply(ctx: Context, config: Config = {}): void {
 
   // --- 1. Capability shim --------------------------------------------------
 
-  const origResolveModelInfo = llm.resolveModelInfo.bind(llm);
-  llm.resolveModelInfo = async function (provider, model, signal) {
-    const info = await origResolveModelInfo(provider, model, signal);
+  const origResolveModelInfo = llm.resolveModelInfo;
+  const boundResolveModelInfo = origResolveModelInfo.bind(llm);
+  const resolveModelInfoShim: LlmService["resolveModelInfo"] = async function (
+    provider,
+    model,
+    signal,
+  ) {
+    const info = await boundResolveModelInfo(provider, model, signal);
     if (info?.inputModalities && !info.inputModalities.includes("image")) {
       return { ...info, inputModalities: [...info.inputModalities, "image"] };
     }
     return info;
   };
+  llm.resolveModelInfo = resolveModelInfoShim;
 
-  const origListModels = llm.listModels.bind(llm);
-  llm.listModels = async function (provider) {
-    const models = await origListModels(provider);
+  const origListModels = llm.listModels;
+  const boundListModels = origListModels.bind(llm);
+  const listModelsShim: LlmService["listModels"] = async function (provider) {
+    const models = await boundListModels(provider);
     return models.map((model) =>
       model?.inputModalities && !model.inputModalities.includes("image")
         ? { ...model, inputModalities: [...model.inputModalities, "image"] }
         : model,
     );
   };
+  llm.listModels = listModelsShim;
 
   // Pre-shim truth, used to decide OCR vs passthrough.
   async function nativeImageSupport(provider: string, model: string): Promise<boolean> {
     try {
-      const info = await origResolveModelInfo(provider, model);
+      const info = await boundResolveModelInfo(provider, model);
       return Boolean(info?.inputModalities?.includes("image"));
     } catch {
       return false; // unresolvable route -> treat as text model (OCR)
@@ -244,14 +342,18 @@ export function apply(ctx: Context, config: Config = {}): void {
     // Fresh temp dir per OCR run; removed in finally (success, error, timeout).
     const dir = await fs.mkdtemp(join(tmpdir(), TEMP_PREFIX));
     const imagePath = join(dir, `input.${EXT_BY_MEDIA[mediaType] ?? "png"}`);
+    let child: ChildProcess | undefined;
     try {
       // Security: fixed filename inside a fresh mkdtemp dir; the extension
       // comes from the EXT_BY_MEDIA whitelist with a png fallback. No
       // user-controlled path reaches here.
       await fs.writeFile(imagePath, bytes);
-      // tesseractBin may carry prefix args, e.g. "tesseract" or
-      // "/usr/bin/tesseract" or (for tests) "node /path/to/mock.mjs".
-      const [bin, ...prefixArgs] = tesseractBin.split(/\s+/).filter(Boolean);
+      // tesseractBin may carry prefix args, e.g. "tesseract",
+      // "/usr/bin/tesseract", quoted Windows paths with spaces, or (for tests)
+      // "node /path/to/mock.mjs".
+      const tokens = parseCommandSpec(tesseractBin);
+      const bin = tokens[0];
+      const prefixArgs = tokens.slice(1);
       if (!bin) throw new Error("tesseractBin is empty");
       const args = [...prefixArgs, imagePath, "stdout", "-l", language, "--psm", String(psm)];
       // Security: argv-array spawn without a shell — no command injection.
@@ -259,45 +361,55 @@ export function apply(ctx: Context, config: Config = {}): void {
       // mkdtemp paths, never from model or attachment content. Do not
       // switch to a string command or `shell: true`.
       return await new Promise<string>((resolve, reject) => {
-        const child = spawn(bin, args, {
+        child = spawn(bin, args, {
           windowsHide: true,
           stdio: ["ignore", "pipe", "pipe"],
         });
         let stdout = "";
         let stderr = "";
-        child.stdout.on("data", (chunk: Buffer) => {
+        let settled = false;
+        const settle = (fn: (value: string) => void, value: string) => {
+          if (settled) return;
+          settled = true;
+          clearTimeout(timer);
+          fn(value);
+        };
+        const settleErr = (error: Error) => {
+          if (settled) return;
+          settled = true;
+          clearTimeout(timer);
+          reject(error);
+        };
+        child.stdout?.on("data", (chunk: Buffer) => {
           stdout += chunk;
         });
-        child.stderr.on("data", (chunk: Buffer) => {
+        child.stderr?.on("data", (chunk: Buffer) => {
           stderr += chunk;
         });
         const timer = setTimeout(() => {
-          child.kill();
-          reject(new Error("tesseract timed out"));
+          void terminateChild(child!).then(() => {
+            settleErr(new Error("tesseract timed out"));
+          });
         }, timeoutMs);
         child.on("error", (error: Error) => {
-          clearTimeout(timer);
-          reject(error);
+          settleErr(error);
         });
         child.on("close", (code: number | null) => {
-          clearTimeout(timer);
-          if (code === 0) resolve(stdout);
-          else reject(new Error(`tesseract exited with code ${code}: ${stderr.trim().slice(0, 300)}`));
+          if (code === 0) settle(resolve, stdout);
+          else {
+            settleErr(
+              new Error(`tesseract exited with code ${code}: ${stderr.trim().slice(0, 300)}`),
+            );
+          }
         });
       });
     } finally {
-      await fs.rm(dir, { recursive: true, force: true }).catch(() => {});
+      if (child) await terminateChild(child);
+      await removeTempDir(dir, ctx.logger?.warn?.bind(ctx.logger));
     }
   }
 
   // --- 3. Message rewriting --------------------------------------------------
-
-  function escapeAttr(value: string): string {
-    return String(value)
-      .replaceAll("&", "&amp;")
-      .replaceAll('"', "&quot;")
-      .replaceAll("<", "&lt;");
-  }
 
   function hasImageBlock(content: ContentBlock[] | undefined): boolean {
     return (
@@ -317,11 +429,19 @@ export function apply(ctx: Context, config: Config = {}): void {
       if (block?.type === "image") {
         if (!out) out = [...content];
         const ref = block.attachment;
-        if (!ref) continue;
-        const nameAttr = ref.name ? ` name="${escapeAttr(ref.name)}"` : "";
+        // Fail-closed: never leave a raw image block for the adapter.
+        if (!ref) {
+          out[i] = {
+            type: "text",
+            text: `<image_ocr>\n${MISSING_ATTACHMENT_TEXT}\n</image_ocr>`,
+          };
+          continue;
+        }
+        // Do not forward local filenames to the provider — they may contain
+        // personal path/PII information unrelated to recognition quality.
         out[i] = {
           type: "text",
-          text: `<image_ocr${nameAttr}>\n${await ocrText(ref)}\n</image_ocr>`,
+          text: `<image_ocr>\n${await ocrText(ref)}\n</image_ocr>`,
         };
       } else if (block?.type === "tool-result" && block.content && hasImageBlock(block.content)) {
         if (!out) out = [...content];
@@ -355,14 +475,18 @@ export function apply(ctx: Context, config: Config = {}): void {
   // The single choke point both streaming paths funnel through
   // (stream() and prepareCall().stream() -> streamWithRegistration ->
   // adapterStream -> adapter.stream).
-  const wrappedAdapters = new Set<LlmAdapter>();
+  const wrappedAdapters = new Map<
+    LlmAdapter,
+    { wrap: LlmAdapter["stream"]; orig: LlmAdapter["stream"] }
+  >();
 
   function wrapAdapter(adapter: LlmAdapter | undefined): void {
     if (!adapter || typeof adapter.stream !== "function" || wrappedAdapters.has(adapter)) {
       return;
     }
-    const origStream = adapter.stream.bind(adapter);
-    adapter.stream = async function* (options: GenerateOptions) {
+    const unboundOrig = adapter.stream;
+    const origStream = unboundOrig.bind(adapter);
+    const streamWrap: LlmAdapter["stream"] = async function* (options: GenerateOptions) {
       const messages = await rewriteMessages(
         options?.messages,
         options?.provider,
@@ -372,7 +496,8 @@ export function apply(ctx: Context, config: Config = {}): void {
         messages === options?.messages ? options : { ...options, messages },
       ) as AsyncIterable<unknown>;
     };
-    wrappedAdapters.add(adapter);
+    adapter.stream = streamWrap;
+    wrappedAdapters.set(adapter, { wrap: streamWrap, orig: unboundOrig });
   }
 
   for (const registration of llm.adapters.values()) {
@@ -389,5 +514,18 @@ export function apply(ctx: Context, config: Config = {}): void {
   ctx.effect(() => () => {
     disposeListener();
     ocrCache.clear();
+    // Restore capability shims only if nothing else replaced them after us.
+    if (llm.resolveModelInfo === resolveModelInfoShim) {
+      llm.resolveModelInfo = origResolveModelInfo;
+    }
+    if (llm.listModels === listModelsShim) {
+      llm.listModels = origListModels;
+    }
+    for (const [adapter, { wrap, orig }] of wrappedAdapters) {
+      // Only unwrap when our wrap is still installed; leave third-party /
+      // HMR replacements alone.
+      if (adapter.stream === wrap) adapter.stream = orig;
+    }
+    wrappedAdapters.clear();
   });
 }
