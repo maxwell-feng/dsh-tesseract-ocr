@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.2.2] - 2026-08-17
+
+### Changed
+
+- **npm release + Trusted Publishing**: first npm release (`@maxwell-feng/dsh-tesseract-ocr`, public, `0.2.2`); future releases publish from GitHub Actions `publish.yml` via OIDC with automatic provenance — no long-lived npm tokens.
+
 ## [0.2.1] - 2026-08-16
 
 First tagged release. Addresses the community review blockers from
