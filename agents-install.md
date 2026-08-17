@@ -22,7 +22,7 @@ attached image.
 
 | Check | Command | Must see |
 |---|---|---|
-| dsh installed | `dsh --version` | a version like `0.1.0-rc.6` |
+| dsh installed | `dsh --version` | a version like `0.1.0-rc.7` or newer |
 | profile exists | `ls ~/.dsh/profiles` | at least one profile (e.g. `web`) |
 | profile boots/composes | `dsh --profile web --dump-config` | succeeds, prints rows |
 | tesseract installed | `tesseract --version` | e.g. `tesseract 5.x` |
@@ -63,7 +63,25 @@ URL** (a bare `C:/...` path is parsed as the `c:` URL scheme).
 
    If `dsh --profile web --dump-config | grep tesseract-ocr` already shows a
    `tesseract-ocr` row, do **not** insert a second one (the loader rejects
-   duplicate ids) — use an `- update:` entry for that id instead.
+   duplicate ids — dsh `0.1.0-rc.7` fails the boot with
+   `duplicate loader entry id: tesseract-ocr`) — use an id-targeted override
+   row for that id instead:
+
+   ```yaml
+   - id: tesseract-ocr
+     config:
+       language: eng+chi_sim
+       passthrough: false
+       psm: 3
+       timeoutMs: 60000
+       maxCacheEntries: 200
+   ```
+
+   A `tesseract-ocr` row already exists whenever the plugin was installed from
+   npm (`dsh plugin --profile web add @maxwell-feng/dsh-tesseract-ocr`) — the
+   package's own bundle patch inserts it. Pick **one** install method (npm
+   bundle **or** the manual insert above); combining both registers the same
+   entry id twice and dsh refuses to boot.
 3. Verify composition: `dsh --profile web --dump-config` — the row must appear
    under the `# == .../cordis.patch.yml` layer.
 4. Restart the dsh web server: stop any running instance, then `dsh web`.
@@ -106,7 +124,7 @@ dsh --profile web --patch /home/you/tesseract-ocr/dev.patch.yml
 | Symptom | Cause | Fix |
 |---|---|---|
 | `EADDRINUSE` on 127.0.0.1:3080 | an older dsh instance still runs | `ss -ltnp \| grep 3080` (or `lsof -i:3080`), stop that PID, start again |
-| `duplicate loader entry id: tesseract-ocr` | the row already exists (profile patch + `--patch` overlay both add it) | use `- update:` for the existing id, or drop the overlay |
+| `duplicate loader entry id: tesseract-ocr` | the row already exists (npm bundle + manual insert, or profile patch + `--patch` overlay both add it) | use an id-targeted override row for the existing id (or drop the overlay / the manual insert — keep one install method) |
 | `ERR_UNSUPPORTED_ESM_URL_SCHEME ... Received protocol 'c:'` | Windows path written as `C:/...` instead of a URL | use `file:///C:/...` in the `name:` field |
 | `MISSING_CREDENTIAL: no API key for provider route ...` | the provider has no key | store the route's key (e.g. `DEEPSEEK_API_KEY`) via the web Models page, or export it in the launching environment |
 | `dsh` refuses to start: `credentials-local: ... .credentials.yaml is readable beyond its owner (mode 664)` | credential file permissions | `chmod 600 ~/.dsh/.credentials.yaml` |

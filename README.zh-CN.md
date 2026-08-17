@@ -6,7 +6,7 @@
 
 **隐私默认：** 图片在本地 OCR，不把原图发给服务商。只有在你明确需要时，才把 `passthrough` 设为 `true`，让真正的视觉模型接收原图。
 
-主要目标平台 Ubuntu（已测试）；只要装了 `tesseract` CLI 就能用（Linux / macOS / Windows）。
+主要目标平台 Ubuntu（已测试）；只要装了 `tesseract` CLI 就能用（Linux / macOS / Windows）。已在 dsh `0.1.0-rc.7` 上验证。
 
 - 不需要改任何模型配置——不用在 `settings.yaml` 里给模型加 `input: [text, image]`。
 - 对 dsh 里的任何 provider/模型通用；默认所有附件图片都会先 OCR 再出站。
@@ -22,6 +22,8 @@ dsh plugin --profile web add @maxwell-feng/dsh-tesseract-ocr
 ```
 
 （把 `web` 换成你的 profile，如 `tui`。）预编译发布（含 Sigstore provenance），无需源码构建或 `allowBuilds` 授权。从本仓库源码安装仍可用下方 agent 指南或手动步骤。
+
+> **npm 安装会自行注册 `tesseract-ocr` 这一行。** 该包自带 bundle 补丁（`dsh.bundle` + 它自己的 `cordis.patch.yml`），已经插入了 `tesseract-ocr` 这个 loader 条目。请**不要**再往 profile 里手动 `- insert:` 一行同 id 的条目——dsh `0.1.0-rc.7`（cordis-plugin-loader `1.0.2`）会拒绝重复的 loader 条目 id，`dsh web` 会以 `duplicate loader entry id: tesseract-ocr` 启动失败。
 
 ## 让 AI agent 快速安装
 
@@ -87,6 +89,8 @@ name: '/home/you/tesseract-ocr/lib/index.js'
 ```
 
 然后重启 `dsh web`。删掉这几行即卸载；插件会在卸载时恢复原来的 `llm` / adapter 方法。
+
+> **两种加载方式二选一**：npm bundle（上文）**或**这里的手动 insert——绝不能同时用。两者注册的是同一个 `tesseract-ocr` 条目 id，而 dsh `0.1.0-rc.7` 在行重复出现时会以 `duplicate loader entry id: tesseract-ocr` 拒绝启动。如果这一行已经存在（例如已按 npm bundle 方式安装），请用按 id 覆盖的行改配置，而不是再插入一行。
 
 ### 临时加载：`--patch` overlay
 

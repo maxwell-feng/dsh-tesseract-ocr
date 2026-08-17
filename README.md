@@ -6,7 +6,7 @@
 
 **Privacy default:** image bytes are OCR'd locally and not sent to the provider. Set `passthrough: true` only if you intentionally want genuine vision models to receive original image bytes.
 
-Tested on Ubuntu (primary target); works anywhere the `tesseract` CLI is installed (Linux, macOS, Windows).
+Tested on Ubuntu (primary target); works anywhere the `tesseract` CLI is installed (Linux, macOS, Windows). Verified against dsh `0.1.0-rc.7`.
 
 - No configuration changes to your models — no `input: [text, image]` hacks in `settings.yaml`.
 - Works with any provider/model in dsh; by default every attached image is OCR'd before the request leaves the machine.
@@ -22,6 +22,13 @@ dsh plugin --profile web add @maxwell-feng/dsh-tesseract-ocr
 ```
 
 (Replace `web` with your profile, e.g. `tui`.) Prebuilt and published with Sigstore provenance — no source build or `allowBuilds` approval needed. Installing from source (this repo) still works via the agent guide or the manual steps below.
+
+> **npm install registers the `tesseract-ocr` row by itself.** The package
+> ships a bundle patch (`dsh.bundle` + its own `cordis.patch.yml`) that
+> inserts the `tesseract-ocr` loader entry. Do **not** also add a manual
+> `- insert:` row with the same id to your profile — dsh `0.1.0-rc.7`
+> (cordis-plugin-loader `1.0.2`) rejects duplicate loader entry ids and
+> `dsh web` fails to boot with `duplicate loader entry id: tesseract-ocr`.
 
 ## Quick install via an AI agent
 
@@ -103,6 +110,13 @@ Append to your profile's `cordis.patch.yml` (e.g. `~/.dsh/profiles/web/cordis.pa
 ```
 
 Then restart `dsh web`. Remove the rows to uninstall — the plugin restores the original `llm` / adapter methods on unload.
+
+> Choose **one** way to load the plugin: the npm bundle (above) **or** this
+> manual insert — never both. Both register the same `tesseract-ocr` entry id,
+> and dsh `0.1.0-rc.7` fails the boot with `duplicate loader entry id:
+> tesseract-ocr` when the row exists twice. If the row is already present (for
+> example after an npm bundle install), configure it with an id-targeted
+> override row instead of inserting a second one.
 
 ### Temporary: `--patch` overlay
 
