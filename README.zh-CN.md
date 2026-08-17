@@ -15,6 +15,14 @@
 
 > 不要与 `windows-ocr` 插件同时启用：两者会对同一张图各跑一次 OCR。每台机器二选一。
 
+## npm 安装
+
+```bash
+dsh plugin add @maxwell-feng/dsh-tesseract-ocr
+```
+
+预编译发布（含 Sigstore provenance），无需源码构建或 `allowBuilds` 授权。从本仓库源码安装仍可用下方 agent 指南或手动步骤。
+
 ## 让 AI agent 快速安装
 
 把这个仓库交给任何 AI agent，或直接粘贴下面的指令，agent 会替你完成安装与验证：

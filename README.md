@@ -15,6 +15,14 @@ Tested on Ubuntu (primary target); works anywhere the `tesseract` CLI is install
 
 > Do not enable this plugin together with `windows-ocr`: both would OCR the same image. Pick one per machine.
 
+## Install from npm
+
+```bash
+dsh plugin add @maxwell-feng/dsh-tesseract-ocr
+```
+
+Prebuilt and published with Sigstore provenance — no source build or `allowBuilds` approval needed. Installing from source (this repo) still works via the agent guide or the manual steps below.
+
 ## Quick install via an AI agent
 
 Hand this repository to any AI agent, or paste the instruction below, and the
