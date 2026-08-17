@@ -2,6 +2,30 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.2.3] - 2026-08-17
+
+### Compatibility
+
+- **Adapted to deepseek-harness `0.1.0-rc.7`**: plugin code verified against
+  the rc.7 `llm` service (`resolveModelInfo` / `listModels` /
+  `adapter.stream` / `llm/adapters-updated`) and `attachments` service
+  (`readImage`) — both unchanged from rc.6 — no code changes required.
+  Configuration and install docs now target `0.1.0-rc.7`.
+
+### Fixed
+
+- **Duplicate loader entry id trap**: dsh `0.1.0-rc.7` (cordis-plugin-loader
+  `1.0.2`) rejects two composed rows sharing one loader entry id, failing the
+  boot with `duplicate loader entry id: tesseract-ocr`. The docs previously
+  let users install the plugin **both** as an npm bundle **and** as a manual
+  `cordis.patch.yml` insert (same id, twice). Install modes are now documented
+  as mutually exclusive.
+- **Broken config-override guidance**: agents-install told users to modify an
+  existing row with `- update:`, a patch form that is not part of the dsh
+  patch dialect and is silently skipped. The docs now show the correct
+  id-targeted override row (`- id: tesseract-ocr` + `config:`), which replaces
+  the existing row's config without registering a second entry.
+
 ## [0.2.2] - 2026-08-17
 
 ### Changed
