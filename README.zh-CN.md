@@ -1,5 +1,7 @@
 # tesseract-ocr
 
+[![Awesome DSH Plugin](https://awesome-dsh-plugin.com/badge.svg)](https://awesome-dsh-plugin.com)
+
 一个 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)（dsh）插件：让**纯文本模型**也能"看"附件图片——图片在**本机**用 [Tesseract OCR](https://github.com/tesseract-ocr/tesseract) 识别，只有识别出的**文字**会发给模型 API。
 
 **隐私默认：** 图片在本地 OCR，不把原图发给服务商。只有在你明确需要时，才把 `passthrough` 设为 `true`，让真正的视觉模型接收原图。
