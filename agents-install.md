@@ -22,7 +22,7 @@ attached image.
 
 | Check | Command | Must see |
 |---|---|---|
-| dsh installed | `dsh --version` | a version like `0.1.1-rc.1` or newer |
+| dsh installed | `dsh --version` | a version like `0.1.1-rc.2` or newer |
 | profile exists | `ls ~/.dsh/profiles` | at least one profile (e.g. `web`) |
 | profile boots/composes | `dsh --profile web --dump-config` | succeeds, prints rows |
 | tesseract installed | `tesseract --version` | e.g. `tesseract 5.x` |
@@ -63,7 +63,7 @@ URL** (a bare `C:/...` path is parsed as the `c:` URL scheme).
 
    If `dsh --profile web --dump-config | grep tesseract-ocr` already shows a
    `tesseract-ocr` row, do **not** insert a second one (the loader rejects
-   duplicate ids — dsh `0.1.1-rc.1` fails the boot with
+   duplicate ids — dsh `0.1.1-rc.2` fails the boot with
    `duplicate loader entry id: tesseract-ocr`) — use an id-targeted override
    row for that id instead:
 
