@@ -144,6 +144,58 @@ All settings live in the patch row `tesseract-ocr`:
 | `timeoutMs` | `60000` | Per-image OCR timeout |
 | `maxCacheEntries` | `200` | Bound on the per-run OCR cache (keyed by attachment id) |
 
+## Image routing: local OCR vs. vision passthrough
+
+The single switch that decides whether an attached image leaves the machine is
+`passthrough` in the `tesseract-ocr` config row.
+
+- `passthrough: false` (default, privacy-first): every image is recognized
+  locally with Tesseract OCR and only the recognized text is sent to the model.
+  Image bytes never leave the machine.
+- `passthrough: true`: a model that **natively** supports images receives the
+  original image bytes untouched, so a genuine vision model actually "sees" the
+  picture. Text-only models are still OCR'd locally (fail-closed) — see below.
+
+### Decision matrix
+
+| Model | `passthrough` | Image goes to |
+|---|---|---|
+| Multimodal / vision | `true` | the provider, original bytes (model sees the image) |
+| Multimodal / vision | `false` | local Tesseract OCR, text only |
+| Text-only | `true` | local Tesseract OCR (model has no vision; fail-closed) |
+| Text-only | `false` | local Tesseract OCR (default) |
+
+### Why `passthrough: true` does not always send the image
+
+This plugin shims `resolveModelInfo` / `listModels` so **every** model appears to
+support `image` — that is what lets dsh admit image attachments in the first
+place. But the actual routing uses the model's *native* capability
+(`nativeImageSupport`, queried through the un-shimmed `resolveModelInfo`) plus
+`passthrough`:
+
+- vision model + `passthrough: true` → original image out;
+- text model + `passthrough: true` → still OCR'd, because the model cannot
+  consume images. This is intentional fail-closed behaviour, not a bug.
+
+### How to change it
+
+The default `passthrough: false` ships with the package. To opt into vision
+passthrough, override the row in your profile's `cordis.patch.yml` with an
+**id-targeted** row (not `insert:`, which would register the id twice and fail
+the boot with `duplicate loader entry id: tesseract-ocr`):
+
+```yaml
+# ~/.dsh/profiles/web/cordis.patch.yml
+- id: tesseract-ocr
+  config:
+    passthrough: true
+    language: chi_sim   # only used when OCR runs; irrelevant for passthrough
+```
+
+Verify with the steps under "Verification inside dsh": with `passthrough: true`
+and a vision model, the provider request should now contain an `image_url` /
+data-URI content part; with `passthrough: false` it contains only `text`.
+
 ## How the model sees the image
 
 Each image block becomes a text block (local filenames are **not** forwarded):
