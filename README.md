@@ -6,7 +6,7 @@
 
 **Privacy default:** image bytes are OCR'd locally and not sent to the provider. Set `passthrough: true` only if you intentionally want genuine vision models to receive original image bytes.
 
-Tested on Ubuntu (primary target); works anywhere the `tesseract` CLI is installed (Linux, macOS, Windows). Verified against dsh `0.1.0-rc.8`.
+Tested on Ubuntu (primary target); works anywhere the `tesseract` CLI is installed (Linux, macOS, Windows). Verified against dsh `0.1.2-alpha.1` (master).
 
 - No configuration changes to your models — no `input: [text, image]` hacks in `settings.yaml`.
 - Works with any provider/model in dsh; by default every attached image is OCR'd before the request leaves the machine.
@@ -26,8 +26,8 @@ dsh plugin --profile web add @maxwell-feng/dsh-tesseract-ocr
 > **npm install registers the `tesseract-ocr` row by itself.** The package
 > ships a bundle patch (`dsh.bundle` + its own `cordis.patch.yml`) that
 > inserts the `tesseract-ocr` loader entry. Do **not** also add a manual
-> `- insert:` row with the same id to your profile — dsh `0.1.0-rc.8`
-> (cordis-plugin-loader `1.0.2`) rejects duplicate loader entry ids and
+> `- insert:` row with the same id to your profile — dsh `0.1.2-alpha.1`
+> rejects duplicate loader entry ids and
 > `dsh web` fails to boot with `duplicate loader entry id: tesseract-ocr`.
 
 ## Quick install via an AI agent
@@ -52,16 +52,16 @@ failure modes you are likely to hit. Manual install instructions are below.
 dsh skills are Markdown instruction files injected into the model context — they cannot execute code, cannot hook the request pipeline, and cannot stop an image from being serialized. This feature needs exactly that, so it is a cordis plugin that hooks two public seams of the `llm` service (same design as `windows-ocr`):
 
 1. **Capability shim** — `ctx.llm.resolveModelInfo` (also `listModels`). The host gates image attachments on `inputModalities.includes("image")` at three places: message admission, model switching, and the `read_image` tool. The shim answers "yes", so text models admit images.
-2. **Request rewrite** — `registration.adapter.stream` (the single choke point both `ctx.llm.stream` and `prepareCall().stream` funnel through). Every `image` content block is replaced with an OCR text block before the adapter serializes the request, so the adapter's own image check never fires, no attachment bytes are read for the wire, and no `image_url` is ever built.
+2. **Pre-step rewrite** — `agent/pre-step`, the harness's official seam for replacing the messages that enter a model call ("Reject a proposed step or replace the messages that enter it"). Every `image` content block is replaced with an OCR text block before the request is built, so no attachment bytes are ever serialized and no `image_url` is ever built. It covers every dispatch path — `ctx.llm.stream` and `prepareCall().stream` both build from the step's messages; wrapping `adapter.stream` no longer works because the bundled adapters override `prepareCall()` and dispatch through generation-bound closures.
 
 ```
 you attach an image
   → admission asks ctx.llm.resolveModelInfo (shimmed: "image" ✓)
   → image stored in the local attachment store (session log, UI preview)
-  → agent builds the request → adapter.stream (wrapped)
+  → agent loop proposes a step → agent/pre-step (rewritten)
   → image block read locally (ctx.attachments.readImage) → tesseract CLI
   → block replaced with <image_ocr>…text…</image_ocr>
-  → adapter serializes a text-only request → provider
+  → request built from OCR'd messages → adapter serializes text only → provider
 ```
 
 ## Requirements (Ubuntu)
@@ -113,7 +113,7 @@ Then restart `dsh web`. Remove the rows to uninstall — the plugin restores the
 
 > Choose **one** way to load the plugin: the npm bundle (above) **or** this
 > manual insert — never both. Both register the same `tesseract-ocr` entry id,
-> and dsh `0.1.0-rc.8` fails the boot with `duplicate loader entry id:
+> and dsh `0.1.2-alpha.1` fails the boot with `duplicate loader entry id:
 > tesseract-ocr` when the row exists twice. If the row is already present (for
 > example after an npm bundle install), configure it with an id-targeted
 > override row instead of inserting a second one.
@@ -188,7 +188,7 @@ Exit 0 with the recognized text means Tesseract is ready.
 - Recognition quality depends on the installed language packs and `psm`; tune `language`/`psm` per use case.
 - Image formats depend on the Tesseract/Leptonica build: PNG/JPEG/TIFF/BMP are safe; WebP/GIF may require additional Leptonica support.
 - Cache is per process; a long-lived session keeps OCR text cached, bounded by `maxCacheEntries`.
-- Hot reload (HMR) replaces adapters; the plugin re-wraps new adapters on `llm/adapters-updated` and restores the original methods on unload. A full restart is still the safest path after any dsh update.
+- The plugin registers one fiber-scoped `agent/pre-step` listener and restores the `llm` capability shims on unload. A full restart is still the safest path after any dsh update.
 - If the plugin is removed, image attachments to text models are refused again (fail-closed), not uploaded.
 - Package name on npm is `@maxwell-feng/dsh-tesseract-ocr` (scoped) to avoid colliding with the unrelated `tesseract-ocr` package.
 
