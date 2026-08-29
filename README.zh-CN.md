@@ -6,7 +6,7 @@
 
 **隐私默认：** 图片在本地 OCR，不把原图发给服务商。只有在你明确需要时，才把 `passthrough` 设为 `true`，让真正的视觉模型接收原图。
 
-主要目标平台 Ubuntu（已测试）；只要装了 `tesseract` CLI 就能用（Linux / macOS / Windows）。已在 dsh `0.1.0-rc.8` 上验证。
+主要目标平台 Ubuntu（已测试）；只要装了 `tesseract` CLI 就能用（Linux / macOS / Windows）。已在 dsh `0.1.2-alpha.1` 上验证。
 
 - 不需要改任何模型配置——不用在 `settings.yaml` 里给模型加 `input: [text, image]`。
 - 对 dsh 里的任何 provider/模型通用；默认所有附件图片都会先 OCR 再出站。
@@ -23,7 +23,7 @@ dsh plugin --profile web add @maxwell-feng/dsh-tesseract-ocr
 
 （把 `web` 换成你的 profile，如 `tui`。）预编译发布（含 Sigstore provenance），无需源码构建或 `allowBuilds` 授权。从本仓库源码安装仍可用下方 agent 指南或手动步骤。
 
-> **npm 安装会自行注册 `tesseract-ocr` 这一行。** 该包自带 bundle 补丁（`dsh.bundle` + 它自己的 `cordis.patch.yml`），已经插入了 `tesseract-ocr` 这个 loader 条目。请**不要**再往 profile 里手动 `- insert:` 一行同 id 的条目——dsh `0.1.0-rc.8`（cordis-plugin-loader `1.0.2`）会拒绝重复的 loader 条目 id，`dsh web` 会以 `duplicate loader entry id: tesseract-ocr` 启动失败。
+> **npm 安装会自行注册 `tesseract-ocr` 这一行。** 该包自带 bundle 补丁（`dsh.bundle` + 它自己的 `cordis.patch.yml`），已经插入了 `tesseract-ocr` 这个 loader 条目。请**不要**再往 profile 里手动 `- insert:` 一行同 id 的条目——dsh `0.1.2-alpha.1`会拒绝重复的 loader 条目 id，`dsh web` 会以 `duplicate loader entry id: tesseract-ocr` 启动失败。
 
 ## 让 AI agent 快速安装
 
@@ -38,16 +38,16 @@ dsh plugin --profile web add @maxwell-feng/dsh-tesseract-ocr
 dsh 的 skill 只是注入模型上下文的 Markdown 指令：不能执行代码、不能钩住请求管线、更拦不住图片被序列化上传。这个功能恰好需要这些，所以它是一个 cordis 插件，钩住 `llm` 服务的两个公开接缝（与 `windows-ocr` 同一设计）：
 
 1. **能力声明（shim）**——包装 `ctx.llm.resolveModelInfo`（以及 `listModels`）。宿主在三处用 `inputModalities.includes("image")` 拦截图片：发送准入、切换模型、`read_image` 工具。shim 让回答变成"支持"，文本模型即可收图。
-2. **请求改写**——包装 `registration.adapter.stream`（`ctx.llm.stream` 和 `prepareCall().stream` 两条路径的唯一汇聚点）。适配器序列化请求前，所有 `image` 内容块已被替换成 OCR 文本块，适配器的图片检查永远不会触发，附件字节不会为出站请求被读取，也永远不会生成 `image_url`。
+2. **步前改写**——`agent/pre-step`，官方提供的、用于替换进入模型调用的消息的接缝（"拒绝一个即将开始的 step，或替换进入它的消息"）。请求构建前，所有 `image` 内容块已被替换成 OCR 文本块，附件字节永远不会被序列化，也永远不会生成 `image_url`。它覆盖所有派发路径——`ctx.llm.stream` 和 `prepareCall().stream` 都从该 step 的消息构建请求；包装 `adapter.stream` 已不再有效，因为内置适配器重写了 `prepareCall()`，通过绑定代的闭包派发。
 
 ```
 你附加图片
   → 准入层问 ctx.llm.resolveModelInfo（shim 返回含 "image" ✓）
   → 图片存入本地附件库（会话日志、UI 预览）
-  → agent 组装请求 → adapter.stream（被包装）
+  → agent 循环提出 step → agent/pre-step（改写）
   → 本地读取图片字节（ctx.attachments.readImage）→ tesseract CLI
   → 图片块替换为 <image_ocr>…识别文字…</image_ocr>
-  → 适配器序列化纯文本请求 → 发给服务商
+  → 用 OCR 后的消息构建请求 → 适配器只序列化文本 → 发给服务商
 ```
 
 ## 环境要求（Ubuntu）
@@ -90,7 +90,7 @@ name: '/home/you/tesseract-ocr/lib/index.js'
 
 然后重启 `dsh web`。删掉这几行即卸载；插件会在卸载时恢复原来的 `llm` / adapter 方法。
 
-> **两种加载方式二选一**：npm bundle（上文）**或**这里的手动 insert——绝不能同时用。两者注册的是同一个 `tesseract-ocr` 条目 id，而 dsh `0.1.0-rc.8` 在行重复出现时会以 `duplicate loader entry id: tesseract-ocr` 拒绝启动。如果这一行已经存在（例如已按 npm bundle 方式安装），请用按 id 覆盖的行改配置，而不是再插入一行。
+> **两种加载方式二选一**：npm bundle（上文）**或**这里的手动 insert——绝不能同时用。两者注册的是同一个 `tesseract-ocr` 条目 id，而 dsh `0.1.2-alpha.1` 在行重复出现时会以 `duplicate loader entry id: tesseract-ocr` 拒绝启动。如果这一行已经存在（例如已按 npm bundle 方式安装），请用按 id 覆盖的行改配置，而不是再插入一行。
 
 ### 临时加载：`--patch` overlay
 
@@ -155,7 +155,7 @@ tesseract /tmp/ocr-test.png stdout -l eng --psm 3
 - 识别质量取决于已装语言包和 `psm`；按场景调 `language`/`psm`。
 - 支持的图片格式取决于 Tesseract/Leptonica 构建：PNG/JPEG/TIFF/BMP 稳妥；WebP/GIF 可能需要额外的 Leptonica 支持。
 - 缓存按进程存活；长会话的 OCR 文本会缓存，受 `maxCacheEntries` 限制。
-- 热重载（HMR）会替换适配器；插件会在 `llm/adapters-updated` 时重新包装新适配器，但 dsh 升级后建议完整重启。
+- 插件注册一个 fiber 作用域的 `agent/pre-step` 监听器，卸载时恢复 `llm` 能力 shim。dsh 升级后仍建议完整重启。
 - 移除插件后，文本模型的图片附件会重新被拒绝（fail-closed），不会被上传。
 
 ## License
