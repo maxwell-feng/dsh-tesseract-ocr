@@ -18,7 +18,7 @@ Tested on Ubuntu (primary target); works anywhere the `tesseract` CLI is install
 ## Install from npm
 
 ```bash
-dsh plugin --profile web add @maxwell-feng/dsh-tesseract-ocr
+dsh plugin --profile web add dsh-tesseract-ocr
 ```
 
 (Replace `web` with your profile, e.g. `tui`.) Prebuilt and published with Sigstore provenance — no source build or `allowBuilds` approval needed. Installing from source (this repo) still works via the agent guide or the manual steps below.
@@ -190,7 +190,7 @@ Exit 0 with the recognized text means Tesseract is ready.
 - Cache is per process; a long-lived session keeps OCR text cached, bounded by `maxCacheEntries`.
 - The plugin registers one fiber-scoped `agent/pre-step` listener and restores the `llm` capability shims on unload. A full restart is still the safest path after any dsh update.
 - If the plugin is removed, image attachments to text models are refused again (fail-closed), not uploaded.
-- Package name on npm is `@maxwell-feng/dsh-tesseract-ocr` (scoped) to avoid colliding with the unrelated `tesseract-ocr` package.
+- Package name on npm is `dsh-tesseract-ocr` (unscoped) to avoid colliding with the unrelated `tesseract-ocr` package.
 
 ## License
 

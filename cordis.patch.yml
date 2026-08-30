@@ -2,7 +2,7 @@
 # "last write wins per row" — no other bundle targets the `tesseract-ocr` id.
 - insert:
     - id: tesseract-ocr
-      name: '@maxwell-feng/dsh-tesseract-ocr'
+      name: 'dsh-tesseract-ocr'
       config:
         # Tesseract language(s), "+"-joined, e.g. "eng", "chi_sim", "eng+chi_sim".
         language: eng

@@ -78,7 +78,7 @@ URL** (a bare `C:/...` path is parsed as the `c:` URL scheme).
    ```
 
    A `tesseract-ocr` row already exists whenever the plugin was installed from
-   npm (`dsh plugin --profile web add @maxwell-feng/dsh-tesseract-ocr`) — the
+   npm (`dsh plugin --profile web add dsh-tesseract-ocr`) — the
    package's own bundle patch inserts it. Pick **one** install method (npm
    bundle **or** the manual insert above); combining both registers the same
    entry id twice and dsh refuses to boot.
