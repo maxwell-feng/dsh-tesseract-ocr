@@ -23,6 +23,18 @@ dsh plugin --profile web add dsh-tesseract-ocr
 
 (Replace `web` with your profile, e.g. `tui`.) Prebuilt and published with Sigstore provenance — no source build or `allowBuilds` approval needed. Installing from source (this repo) still works via the agent guide or the manual steps below.
 
+or from the repository / a tarball:
+
+```bash
+dsh plugin --profile web add ./dsh-tesseract-ocr        # source checkout
+dsh plugin --profile web add ./dsh-tesseract-ocr-0.3.2.tgz
+dsh plugin --profile web add github:maxwell-feng/dsh-tesseract-ocr
+```
+
+> Git installs fetch sources, not built artifacts: the package's `prepare`
+> script runs `tsc` to rebuild `lib/` from source, and pnpm ≥ 10 requires you
+> to allow the build once (it prints the exact `pnpm-workspace.yaml` snippet).
+
 > **npm install registers the `tesseract-ocr` row by itself.** The package
 > ships a bundle patch (`dsh.bundle` + its own `cordis.patch.yml`) that
 > inserts the `tesseract-ocr` loader entry. Do **not** also add a manual
