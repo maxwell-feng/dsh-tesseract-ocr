@@ -35,6 +35,7 @@
 // process. Hot-unload restores the original llm methods.
 
 import type { Context } from "@deepseek-ai/cordis";
+import Schema from "@deepseek-ai/schemastery";
 import { spawn, type ChildProcess } from "node:child_process";
 import { lstatSync, readdirSync, promises as fs, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -128,7 +129,7 @@ type PreStepDecision =
   | { kind: "reject" }
   | { kind: "enter"; messages: MessageLike[]; startsRequestSeries?: true };
 
-interface Config {
+export interface Config {
   language?: string;
   passthrough?: boolean;
   tesseractBin?: string;
@@ -136,6 +137,20 @@ interface Config {
   timeoutMs?: number;
   maxCacheEntries?: number;
 }
+
+/**
+ * Loader-time configuration schema (docs/user/develop/basic/config). The
+ * loader validates and fills defaults before apply() runs; apply() keeps its
+ * defensive fallbacks so direct callers (tests) see identical behavior.
+ */
+export const Config: Schema<Config> = Schema.object({
+  language: Schema.string().default("eng"),
+  passthrough: Schema.boolean().default(false),
+  tesseractBin: Schema.string().default("tesseract"),
+  psm: Schema.number().default(3),
+  timeoutMs: Schema.number().default(60000),
+  maxCacheEntries: Schema.number().default(200),
+});
 
 const EXT_BY_MEDIA: Record<string, string> = {
   "image/png": "png",
