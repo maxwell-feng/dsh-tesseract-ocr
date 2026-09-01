@@ -158,6 +158,10 @@ the boot with an actionable error instead of being silently ignored:
 | `timeoutMs` | `60000` | Per-image OCR timeout |
 | `maxCacheEntries` | `200` | Bound on the per-run OCR cache (keyed by attachment id) |
 
+## Usage
+
+Attach any image to a text-model session and send a message — the plugin intercepts `agent/pre-step`, OCRs the image locally via the `tesseract` CLI, and replaces the `image` block with a text block before the request is built. No code or model-config changes needed; every provider/model in dsh benefits.
+
 ## How the model sees the image
 
 Each image block becomes a text block (local filenames are **not** forwarded):
@@ -196,6 +200,14 @@ Exit 0 with the recognized text means Tesseract is ready.
 
 1. Attach an image to a text-model session and send a message — the model should answer using the recognized text.
 2. Confirm the image never goes out: open DevTools → Network in the web UI, inspect the request to your provider base URL, and verify the payload contains only `text` content parts (no `image_url` / data URI).
+
+## Uninstall
+
+```bash
+dsh plugin --profile web remove dsh-tesseract-ocr
+```
+
+For manual installs, delete the `tesseract-ocr` row from your profile's `cordis.patch.yml` and restart `dsh --profile web`. The plugin restores the original `llm` shims on unload; a full restart is safest after removal. After uninstall, text-model image attachments are refused again (fail-closed).
 
 ## Limitations
 
