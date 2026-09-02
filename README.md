@@ -6,7 +6,7 @@
 
 **Privacy default:** image bytes are OCR'd locally and not sent to the provider. Set `passthrough: true` only if you intentionally want genuine vision models to receive original image bytes.
 
-Tested on Ubuntu (primary target); works anywhere the `tesseract` CLI is installed (Linux, macOS, Windows). Verified against dsh `0.1.2-alpha.2` (master).
+Tested on Ubuntu (primary target); works anywhere the `tesseract` CLI is installed (Linux, macOS, Windows). Verified against dsh `0.1.2-alpha.5` (master).
 
 - No configuration changes to your models — no `input: [text, image]` hacks in `settings.yaml`.
 - Works with any provider/model in dsh; by default every attached image is OCR'd before the request leaves the machine.
@@ -38,7 +38,7 @@ dsh plugin --profile web add github:maxwell-feng/dsh-tesseract-ocr
 > **npm install registers the `tesseract-ocr` row by itself.** The package
 > ships a bundle patch (`dsh.bundle` + its own `cordis.patch.yml`) that
 > inserts the `tesseract-ocr` loader entry. Do **not** also add a manual
-> `- insert:` row with the same id to your profile — dsh `0.1.2-alpha.2`
+> `- insert:` row with the same id to your profile — dsh `0.1.2-alpha.5`
 > rejects duplicate loader entry ids and
 > `dsh web` fails to boot with `duplicate loader entry id: tesseract-ocr`.
 
@@ -125,7 +125,7 @@ Then restart `dsh web`. Remove the rows to uninstall — the plugin restores the
 
 > Choose **one** way to load the plugin: the npm bundle (above) **or** this
 > manual insert — never both. Both register the same `tesseract-ocr` entry id,
-> and dsh `0.1.2-alpha.2` fails the boot with `duplicate loader entry id:
+> and dsh `0.1.2-alpha.5` fails the boot with `duplicate loader entry id:
 > tesseract-ocr` when the row exists twice. If the row is already present (for
 > example after an npm bundle install), configure it with an id-targeted
 > override row instead of inserting a second one.
