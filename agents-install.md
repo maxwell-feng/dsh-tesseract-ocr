@@ -27,7 +27,7 @@ attached image.
 | profile boots/composes | `dsh --profile web --dump-config` | succeeds, prints rows |
 | tesseract installed | `tesseract --version` | e.g. `tesseract 5.x` |
 | tesseract languages | `tesseract --list-langs` | `eng` and any language you need (e.g. `chi_sim`) |
-| plugin row not already present | `dsh --profile web --dump-config \| grep tesseract-ocr` | nothing (or you must **update** that row instead of inserting a duplicate) |
+| plugin row not already present | `dsh --profile web --dump-config &#124; grep tesseract-ocr` | nothing (or you must **update** that row instead of inserting a duplicate) |
 
 If `tesseract` is missing, install it and the language packs, e.g. on Debian/Ubuntu:
 
@@ -123,7 +123,7 @@ dsh --profile web --patch /home/you/tesseract-ocr/dev.patch.yml
 
 | Symptom | Cause | Fix |
 |---|---|---|
-| `EADDRINUSE` on 127.0.0.1:3080 | an older dsh instance still runs | `ss -ltnp \| grep 3080` (or `lsof -i:3080`), stop that PID, start again |
+| `EADDRINUSE` on 127.0.0.1:3080 | an older dsh instance still runs | `ss -ltnp &#124; grep 3080` (or `lsof -i:3080`), stop that PID, start again |
 | `duplicate loader entry id: tesseract-ocr` | the row already exists (npm bundle + manual insert, or profile patch + `--patch` overlay both add it) | use an id-targeted override row for the existing id (or drop the overlay / the manual insert — keep one install method) |
 | `ERR_UNSUPPORTED_ESM_URL_SCHEME ... Received protocol 'c:'` | Windows path written as `C:/...` instead of a URL | use `file:///C:/...` in the `name:` field |
 | `MISSING_CREDENTIAL: no API key for provider route ...` | the provider has no key | store the route's key (e.g. `DEEPSEEK_API_KEY`) via the web Models page, or export it in the launching environment |
