@@ -17,7 +17,7 @@
 | `tesseractBin` | `string` | `"tesseract"` | Tesseract 可执行文件路径。若已在系统 PATH 中，保持默认即可；否则可指定绝对路径（如 `"C:\\Program Files\\Tesseract-OCR\\tesseract.exe"` 或 `"/usr/bin/tesseract"`）。 |
 | `psm` | `number` | `3` | Tesseract 页面分割模式 (Page Segmentation Mode)。默认为 `3`（全自动页面分割，无需方向检测），单行文字可设为 `7`。 |
 | `timeoutMs` | `number` | `60000` | 单次 OCR 执行的最大超时时间（毫秒）。超时将杀死子进程并自动回收临时目录。 |
-| `maxCacheEntries` | `number` | `200` | 内存中针对图片附件 Hash 的 OCR 文本缓存条目上限。 |
+| `maxCacheEntries` | `number` | `200` | 内存中按附件 id 缓存的 OCR 文本条目上限（超限时优先淘汰最早的条目）。 |
 
 ---
 

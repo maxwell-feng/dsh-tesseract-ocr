@@ -15,7 +15,7 @@ This document describes all configuration options, type contracts, and defaults 
 | `tesseractBin` | `string` | `"tesseract"` | Path or executable name of the `tesseract` binary. |
 | `psm` | `number` | `3` | Page segmentation mode (PSM). Default `3` is fully automatic page segmentation without OSD. |
 | `timeoutMs` | `number` | `60000` | Maximum time in milliseconds for one OCR invocation. |
-| `maxCacheEntries` | `number` | `200` | Maximum number of OCR results cached in memory by image hash. |
+| `maxCacheEntries` | `number` | `200` | Maximum number of OCR results cached in memory, keyed by attachment id (oldest entry evicted first). |
 
 ---
 

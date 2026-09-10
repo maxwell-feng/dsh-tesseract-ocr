@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.5.0] - 2026-09-10
+
+### Compatibility / 兼容性
+
+- **DeepSeek Harness 0.1.5-rc.1 compatibility verified**: no seam changes since `0.1.5-alpha.1` — the `ctx.llm.resolveModelInfo` / `listModels` capability shim, the `agent/pre-step` message rewrite (`PreStepDecision` shape unchanged), and `ctx.attachments.readImage(ref, signal?)` remain the stable integration points. The vendored `@deepseek-ai/cordis` `4.0.2` and `@deepseek-ai/schemastery` `3.18.2` match the plugin pins, so no code migration is required. Node engine floor raised to `>=22` to match the harness host (`^22.19.0 || >=24.0.0`).
+- **兼容性：已在 deepseek-harness 0.1.5-rc.1 上完成验证**：自 `0.1.5-alpha.1` 以来无缝接口变更——`ctx.llm.resolveModelInfo` / `listModels` 能力补丁、`agent/pre-step` 消息改写（`PreStepDecision` 结构不变）与 `ctx.attachments.readImage(ref, signal?)` 仍为稳定集成点。内置 `@deepseek-ai/cordis` `4.0.2` 与 `@deepseek-ai/schemastery` `3.18.2` 与插件锁定版本一致，无需代码迁移。Node 引擎下限升至 `>=22`，与 harness 宿主（`^22.19.0 || >=24.0.0`）对齐。
+
+### Docs / 文档
+
+- **Bilingual doc refresh**: renamed `README.zh-CN.md` → `README.zh.md` (uniform `.zh.md` suffix across all pairs); added standalone `INSTALL.md` / `INSTALL.zh.md` and `USAGE.md` / `USAGE.zh.md` (OCR parameters `language` / `psm` / `timeoutMs` with verified examples); refreshed README, CONFIG, UPDATE, and UNINSTALL pairs against `0.1.5-rc.1`; corrected the `maxCacheEntries` description (cache is keyed by attachment id).
+- **双语文档刷新**：`README.zh-CN.md` 更名为 `README.zh.md`（全部文档对统一使用 `.zh.md` 后缀）；新增独立的 `INSTALL.md` / `INSTALL.zh.md` 与 `USAGE.md` / `USAGE.zh.md`（OCR 参数 `language` / `psm` / `timeoutMs` 及已验证示例）；README、CONFIG、UPDATE、UNINSTALL 文档对已按 `0.1.5-rc.1` 刷新；修正 `maxCacheEntries` 描述（缓存按键为附件 id）。
+
 ## [0.4.0] - 2026-09-09
 
 ### Compatibility / 兼容性
