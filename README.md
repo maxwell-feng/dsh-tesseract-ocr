@@ -1,12 +1,14 @@
 # tesseract-ocr
 
+English | [简体中文](README.zh.md)
+
 [![Awesome DSH Plugin](https://awesome-dsh-plugin.com/badge.svg)](https://awesome-dsh-plugin.com)
 
 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (dsh) plugin that lets **text-only models** accept attached images: every image is recognized **locally** with [Tesseract OCR](https://github.com/tesseract-ocr/tesseract) and only the recognized **text** is sent to the model API.
 
 **Privacy default:** image bytes are OCR'd locally and not sent to the provider. Set `passthrough: true` only if you intentionally want genuine vision models to receive original image bytes.
 
-Tested on Ubuntu (primary target); works anywhere the `tesseract` CLI is installed (Linux, macOS, Windows). Verified against dsh `0.1.3-alpha.1` (latest release).
+Tested on Ubuntu (primary target); works anywhere the `tesseract` CLI is installed (Linux, macOS, Windows). Verified against dsh `0.1.5-rc.1`.
 
 - No configuration changes to your models — no `input: [text, image]` hacks in `settings.yaml`.
 - Works with any provider/model in dsh; by default every attached image is OCR'd before the request leaves the machine.
@@ -27,7 +29,7 @@ or from the repository / a tarball:
 
 ```bash
 dsh plugin --profile web add ./dsh-tesseract-ocr        # source checkout
-dsh plugin --profile web add ./dsh-tesseract-ocr-0.3.2.tgz
+dsh plugin --profile web add ./dsh-tesseract-ocr-0.5.0.tgz
 dsh plugin --profile web add github:maxwell-feng/dsh-tesseract-ocr
 ```
 
@@ -38,9 +40,18 @@ dsh plugin --profile web add github:maxwell-feng/dsh-tesseract-ocr
 > **npm install registers the `tesseract-ocr` row by itself.** The package
 > ships a bundle patch (`dsh.bundle` + its own `cordis.patch.yml`) that
 > inserts the `tesseract-ocr` loader entry. Do **not** also add a manual
-> `- insert:` row with the same id to your profile — dsh `0.1.3-alpha.1`
+> `- insert:` row with the same id to your profile — dsh `0.1.5-rc.1`
 > rejects duplicate loader entry ids and
 > `dsh web` fails to boot with `duplicate loader entry id: tesseract-ocr`.
+
+## Documentation
+
+- [Configuration Guide](CONFIG.md) ([简体中文](CONFIG.zh.md))
+- [Install Guide](INSTALL.md) ([简体中文](INSTALL.zh.md))
+- [Usage Guide](USAGE.md) ([简体中文](USAGE.zh.md))
+- [Update Guide](UPDATE.md) ([简体中文](UPDATE.zh.md))
+- [Uninstall Guide](UNINSTALL.md) ([简体中文](UNINSTALL.zh.md))
+- [Changelog](CHANGELOG.md)
 
 ## Quick install via an AI agent
 
@@ -125,8 +136,8 @@ Then restart `dsh web`. Remove the rows to uninstall — the plugin restores the
 
 > Choose **one** way to load the plugin: the npm bundle (above) **or** this
 > manual insert — never both. Both register the same `tesseract-ocr` entry id,
-> and dsh `0.1.3-alpha.1` fails the boot with `duplicate loader entry id:
-> tesseract-ocr` when the row exists twice. If the row is already present (for
+> and dsh `0.1.5-rc.1` fails the boot with `duplicate loader entry id: tesseract-ocr`
+> when the row exists twice. If the row is already present (for
 > example after an npm bundle install), configure it with an id-targeted
 > override row instead of inserting a second one.
 
