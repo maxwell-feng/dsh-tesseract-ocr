@@ -1,20 +1,16 @@
 # Changelog
 
-## [0.7.0] - 2026-09-11
+## [0.8.0] - 2026-09-11
 
 ### Changed / 变更
 
-- **Modular TypeScript Architecture Refactoring / 模块化 TypeScript 架构重构**:
-  - Refactored monolithic codebase into dedicated modules following the official DeepSeek Harness plugin development guide.
-  - Separated public types and Cordis event declarations into `src/types.ts`.
-  - Extracted Schemastery validation into `src/config.ts`.
-  - Extracted CLI argument parsing into `src/command-parser.ts` using safe non-regex-exec matching.
-  - Extracted temp directory lifecycle and process tree termination into `src/temp-cleanup.ts`.
-  - Extracted LLM capability shims into `src/capability-shim.ts`.
-  - Extracted Tesseract CLI invocation and cache management into `src/tesseract-engine.ts`.
-  - Extracted agent message inspection and rewriting into `src/pre-step.ts`.
-  - Exported unified plugin entry from `src/index.ts` with backward-compatible API.
-  - Recompiled and verified all 20 pipeline tests pass.
+- **Pure TypeScript Architecture Refactoring (Zero JavaScript) / 纯 TypeScript 架构重构（无 JavaScript 残留）**:
+  - Fully refactored into a pure TypeScript codebase following official DeepSeek Harness plugin development guidelines.
+  - Completely removed all legacy `.mjs` / `.js` files from repository tracking and test runners, including converting the test CLI mock to `test/mock-tesseract.ts`.
+  - Converted the entire test suite into pure TypeScript (`test/standalone-test.test.ts`), executed natively using Node `--experimental-strip-types`.
+  - Configured modern `allowImportingTsExtensions` and `rewriteRelativeImportExtensions` with dual `tsconfig.json` (strip-types runtime) and `tsconfig.build.json` (distribution compilation).
+  - Cleanly modularized responsibilities: `src/types.ts`, `src/config.ts`, `src/command-parser.ts`, `src/temp-cleanup.ts`, `src/capability-shim.ts`, `src/tesseract-engine.ts`, `src/pre-step.ts`, and `src/index.ts`.
+  - Verified 100% test pass rate.
 
 ## [0.6.0] - 2026-09-11
 

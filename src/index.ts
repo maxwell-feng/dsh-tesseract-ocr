@@ -5,25 +5,25 @@
 // recognized text to the model.
 
 import type { Context } from "@deepseek-ai/cordis";
-import { installCapabilityShim } from "./capability-shim.js";
-import { Config, EXT_BY_MEDIA, MISSING_ATTACHMENT_TEXT, TEMP_PREFIX } from "./config.js";
-import { parseCommandSpec } from "./command-parser.js";
-import { rewriteMessages } from "./pre-step.js";
-import { sweepOrphanTempDirs } from "./temp-cleanup.js";
-import { TesseractOcrEngine } from "./tesseract-engine.js";
-import type { AttachmentStore, Config as PluginConfig, LlmService } from "./types.js";
+import { installCapabilityShim } from "./capability-shim.ts";
+import { Config, EXT_BY_MEDIA, MISSING_ATTACHMENT_TEXT, TEMP_PREFIX } from "./config.ts";
+import { parseCommandSpec } from "./command-parser.ts";
+import { rewriteMessages } from "./pre-step.ts";
+import { sweepOrphanTempDirs } from "./temp-cleanup.ts";
+import { TesseractOcrEngine } from "./tesseract-engine.ts";
+import type { AttachmentStore, Config as PluginConfig, LlmService } from "./types.ts";
 
 export const name = "tesseract-ocr";
 
 export const inject = ["llm", "attachments"];
 
-export { Config, EXT_BY_MEDIA, MISSING_ATTACHMENT_TEXT, TEMP_PREFIX } from "./config.js";
-export { parseCommandSpec } from "./command-parser.js";
-export { installCapabilityShim } from "./capability-shim.js";
-export { TesseractOcrEngine } from "./tesseract-engine.js";
-export { currentRoute, hasImageBlock, rewriteContent, rewriteMessages } from "./pre-step.js";
-export { removeTempDir, sleep, sweepOrphanTempDirs, terminateChild } from "./temp-cleanup.js";
-export * from "./types.js";
+export { Config, EXT_BY_MEDIA, MISSING_ATTACHMENT_TEXT, TEMP_PREFIX } from "./config.ts";
+export { parseCommandSpec } from "./command-parser.ts";
+export { installCapabilityShim } from "./capability-shim.ts";
+export { TesseractOcrEngine } from "./tesseract-engine.ts";
+export { currentRoute, hasImageBlock, rewriteContent, rewriteMessages } from "./pre-step.ts";
+export { removeTempDir, sleep, sweepOrphanTempDirs, terminateChild } from "./temp-cleanup.ts";
+export * from "./types.ts";
 
 export function apply(ctx: Context, config: PluginConfig = {}): void {
   const language =

@@ -43,7 +43,7 @@ rejects duplicate loader entry ids and `dsh web` fails to boot with
 
 ```bash
 dsh plugin --profile web add ./dsh-tesseract-ocr        # source checkout
-dsh plugin --profile web add ./dsh-tesseract-ocr-0.7.0.tgz
+dsh plugin --profile web add ./dsh-tesseract-ocr-0.8.0.tgz
 dsh plugin --profile web add github:maxwell-feng/dsh-tesseract-ocr
 ```
 
