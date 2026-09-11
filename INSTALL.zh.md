@@ -2,7 +2,7 @@
 
 [English](INSTALL.md) | 简体中文
 
-> 本版本已在 DeepSeek Harness **0.1.5-rc.1** 最新发布版本上全面验证。
+> 本版本已在 DeepSeek Harness **0.1.5-rc.2** 最新发布版本上全面验证。
 
 本文档介绍如何把 `dsh-tesseract-ocr` 安装到 DeepSeek Harness 的指定
 Profile。写给 AI agent 的分步手册（含前置检查、强制功能验证、故障排查）见
@@ -12,7 +12,7 @@ Profile。写给 AI agent 的分步手册（含前置检查、强制功能验证
 
 ## 1. 环境要求
 
-- DeepSeek Harness `0.1.5-rc.1` 或更新版本（`dsh --version`）。
+- DeepSeek Harness `0.1.5-rc.2` 或更新版本（`dsh --version`）。
 - Node.js `>=22`（与 harness 的引擎要求一致）。
 - `tesseract` 命令行及所需的语言包：
 
@@ -32,7 +32,7 @@ dsh plugin --profile web add dsh-tesseract-ocr
 
 （把 `web` 换成你的 profile，如 `tui`。）npm 包自带 bundle 补丁，会自行注册
 `tesseract-ocr` 这一行——请**不要**再手动 `- insert:` 一行同 id 的条目；dsh
-`0.1.5-rc.1` 会拒绝重复的 loader 条目 id，`dsh web` 会以
+`0.1.5-rc.2` 会拒绝重复的 loader 条目 id，`dsh web` 会以
 `duplicate loader entry id: tesseract-ocr` 启动失败。
 
 ---
@@ -41,7 +41,7 @@ dsh plugin --profile web add dsh-tesseract-ocr
 
 ```bash
 dsh plugin --profile web add ./dsh-tesseract-ocr        # 源码目录
-dsh plugin --profile web add ./dsh-tesseract-ocr-0.5.0.tgz
+dsh plugin --profile web add ./dsh-tesseract-ocr-0.6.0.tgz
 dsh plugin --profile web add github:maxwell-feng/dsh-tesseract-ocr
 ```
 

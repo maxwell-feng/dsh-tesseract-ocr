@@ -2,7 +2,7 @@
 
 [English](UPDATE.md) | 简体中文
 
-> 本版本已在 DeepSeek Harness **0.1.5-rc.1** 最新发布版本上全面验证。
+> 本版本已在 DeepSeek Harness **0.1.5-rc.2** 最新发布版本上全面验证。
 
 本文档介绍如何将 **dsh-tesseract-ocr** 插件升级至最新版本。
 
@@ -16,13 +16,13 @@ dsh plugin --profile web update dsh-tesseract-ocr@latest
 ```
 或指定版本：
 ```bash
-dsh plugin --profile web add dsh-tesseract-ocr@0.5.0
+dsh plugin --profile web add dsh-tesseract-ocr@0.6.0
 ```
 
 ### 从 Git 仓库升级
 ```bash
 cd /path/to/dsh-tesseract-ocr
-git pull origin main
+git pull origin master
 pnpm install
 npm run build
 ```
@@ -33,7 +33,7 @@ dsh plugin --profile web add github:maxwell-feng/dsh-tesseract-ocr
 
 ### 从 Tarball 升级
 ```bash
-dsh plugin --profile web add ./dsh-tesseract-ocr-0.5.0.tgz
+dsh plugin --profile web add ./dsh-tesseract-ocr-0.6.0.tgz
 ```
 
 ---

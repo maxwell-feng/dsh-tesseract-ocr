@@ -2,7 +2,7 @@
 
 English | [简体中文](INSTALL.zh.md)
 
-> Verified against DeepSeek Harness **0.1.5-rc.1**.
+> Verified against DeepSeek Harness **0.1.5-rc.2**.
 
 This document explains how to install `dsh-tesseract-ocr` into a DeepSeek
 Harness profile. For a step-by-step guide written for AI agents (preflight
@@ -13,7 +13,7 @@ checks, mandatory functional verification, troubleshooting), see
 
 ## 1. Requirements
 
-- DeepSeek Harness `0.1.5-rc.1` or newer (`dsh --version`).
+- DeepSeek Harness `0.1.5-rc.2` or newer (`dsh --version`).
 - Node.js `>=22` (matches the harness engine requirement).
 - The `tesseract` CLI plus the language packs you need:
 
@@ -33,7 +33,7 @@ dsh plugin --profile web add dsh-tesseract-ocr
 
 (Replace `web` with your profile, e.g. `tui`.) The npm bundle registers the
 `tesseract-ocr` loader row by itself via its own `cordis.patch.yml` — do
-**not** also add a manual `- insert:` row with the same id; dsh `0.1.5-rc.1`
+**not** also add a manual `- insert:` row with the same id; dsh `0.1.5-rc.2`
 rejects duplicate loader entry ids and `dsh web` fails to boot with
 `duplicate loader entry id: tesseract-ocr`.
 
@@ -43,7 +43,7 @@ rejects duplicate loader entry ids and `dsh web` fails to boot with
 
 ```bash
 dsh plugin --profile web add ./dsh-tesseract-ocr        # source checkout
-dsh plugin --profile web add ./dsh-tesseract-ocr-0.5.0.tgz
+dsh plugin --profile web add ./dsh-tesseract-ocr-0.6.0.tgz
 dsh plugin --profile web add github:maxwell-feng/dsh-tesseract-ocr
 ```
 
