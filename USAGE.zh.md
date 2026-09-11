@@ -2,7 +2,7 @@
 
 [English](USAGE.md) | 简体中文
 
-> 本版本已在 DeepSeek Harness **0.1.5-rc.1** 最新发布版本上全面验证。
+> 本版本已在 DeepSeek Harness **0.1.5-rc.2** 最新发布版本上全面验证。
 
 任意图片附加到文本模型会话并发送——插件在 `agent/pre-step` 拦截，本地经
 `tesseract` 命令行识别，并在请求构建前将 `image` 块替换为文本块。无需改动

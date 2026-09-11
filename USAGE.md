@@ -2,7 +2,7 @@
 
 English | [简体中文](USAGE.zh.md)
 
-> Verified against DeepSeek Harness **0.1.5-rc.1**.
+> Verified against DeepSeek Harness **0.1.5-rc.2**.
 
 Attach any image to a text-model session and send a message — the plugin
 intercepts `agent/pre-step`, OCRs the image locally via the `tesseract` CLI,
