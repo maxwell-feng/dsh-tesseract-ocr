@@ -2,10 +2,10 @@ import { spawn, type ChildProcess } from "node:child_process";
 import { promises as fs } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { parseCommandSpec } from "./command-parser.js";
-import { EXT_BY_MEDIA, TEMP_PREFIX } from "./config.js";
-import { removeTempDir, terminateChild } from "./temp-cleanup.js";
-import type { AttachmentStore, ImageAttachmentRef } from "./types.js";
+import { parseCommandSpec } from "./command-parser.ts";
+import { EXT_BY_MEDIA, TEMP_PREFIX } from "./config.ts";
+import { removeTempDir, terminateChild } from "./temp-cleanup.ts";
+import type { AttachmentStore, ImageAttachmentRef } from "./types.ts";
 
 export interface TesseractEngineOptions {
   language: string;
