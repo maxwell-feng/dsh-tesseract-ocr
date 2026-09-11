@@ -2,281 +2,34 @@
 //
 // Goal: when a user attaches an image while a text-only model is selected,
 // recognize the image locally with the Tesseract CLI and send only the
-// recognized text to the model. The image bytes are read from the local
-// attachment store and never leave the machine for OCR paths.
-//
-// The design mirrors windows-ocr (same two official seams on the `llm`
-// service), only the OCR engine differs:
-//
-//  1. resolveModelInfo / listModels shim — the host gates image attachments on
-//     `inputModalities.includes("image")` (session admission, model switch,
-//     and the read_image tool all query this one method). We answer "yes" so
-//     text models admit images; the config stays untouched and fail-closed:
-//     if this plugin is not loaded, models stay text-only and images are
-//     refused, never uploaded.
-//
-//  2. agent/pre-step rewrite — the agent loop emits the `agent/pre-step`
-//     waterfall once per step with the messages that will enter the model
-//     call ("Reject a proposed step or replace the messages that enter it").
-//     Both streaming call paths (ctx.llm.stream and prepareCall().stream)
-//     build their request from those messages, so replacing image blocks with
-//     OCR text here covers every adapter. Monkey-patching `adapter.stream` is
-//     no longer sufficient: the bundled adapters override `prepareCall()` and
-//     dispatch through generation-bound closures that bypass `adapter.stream`.
-//
-// By default every image is OCR'd (`passthrough: false`). Set
-// `passthrough: true` only when you intentionally want genuine vision models
-// to receive original image bytes; text-only models are still OCR'd.
-//
-// Temp-file hygiene: every OCR run writes its image into a fresh temporary
-// directory (tesseract-ocr-*) that is removed in `finally` — on success, on
-// error, and on timeout (after waiting for the child to exit). At plugin start
-// we also sweep orphaned tesseract-ocr-* directories left behind by a crashed
-// process. Hot-unload restores the original llm methods.
+// recognized text to the model.
 
 import type { Context } from "@deepseek-ai/cordis";
-import Schema from "@deepseek-ai/schemastery";
-import { spawn, type ChildProcess } from "node:child_process";
-import { lstatSync, readdirSync, promises as fs, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { installCapabilityShim } from "./capability-shim.js";
+import { Config, EXT_BY_MEDIA, MISSING_ATTACHMENT_TEXT, TEMP_PREFIX } from "./config.js";
+import { parseCommandSpec } from "./command-parser.js";
+import { rewriteMessages } from "./pre-step.js";
+import { sweepOrphanTempDirs } from "./temp-cleanup.js";
+import { TesseractOcrEngine } from "./tesseract-engine.js";
+import type { AttachmentStore, Config as PluginConfig, LlmService } from "./types.js";
 
 export const name = "tesseract-ocr";
 
-// Official dependency declaration: the loader guarantees these services are
-// ready before apply() runs (docs/user/develop/basic: "Required dependencies
-// are ready before apply runs").
 export const inject = ["llm", "attachments"];
 
-// The host emits this event when the agent loop proposes a step; the cordis
-// Events map does not know it, so declare it here.
-declare module "@deepseek-ai/cordis" {
-  interface Events {
-    "agent/pre-step"(
-      payload: AgentPreStepPayload,
-      next: () => Promise<PreStepDecision>,
-    ): Promise<PreStepDecision>;
-  }
-}
+export { Config, EXT_BY_MEDIA, MISSING_ATTACHMENT_TEXT, TEMP_PREFIX } from "./config.js";
+export { parseCommandSpec } from "./command-parser.js";
+export { installCapabilityShim } from "./capability-shim.js";
+export { TesseractOcrEngine } from "./tesseract-engine.js";
+export { currentRoute, hasImageBlock, rewriteContent, rewriteMessages } from "./pre-step.js";
+export { removeTempDir, sleep, sweepOrphanTempDirs, terminateChild } from "./temp-cleanup.js";
+export * from "./types.js";
 
-// ---------------------------------------------------------------------------
-// Minimal structural types for the services we touch (no extra type deps).
-// ---------------------------------------------------------------------------
-
-type ModalityInfo = { inputModalities?: string[] };
-
-interface LlmService {
-  resolveModelInfo(
-    provider: string,
-    model: string,
-    signal?: AbortSignal,
-  ): Promise<ModalityInfo | undefined>;
-  listModels(provider: string): Promise<Array<{ id: string } & ModalityInfo>>;
-}
-
-interface ImageAttachmentRef {
-  attachmentId: string;
-  mediaType: string;
-  bytes: number;
-  width: number;
-  height: number;
-  name?: string;
-}
-
-/** Content blocks are loosely typed: `type` discriminates, unknown fields pass through. */
-interface ContentBlock {
-  type: string;
-  text?: string;
-  attachment?: ImageAttachmentRef;
-  content?: ContentBlock[];
-  [key: string]: unknown;
-}
-
-interface MessageLike {
-  role?: string;
-  content?: ContentBlock[];
-}
-
-interface AttachmentStore {
-  readImage(
-    ref: ImageAttachmentRef,
-    signal?: AbortSignal,
-  ): Promise<{ ref: ImageAttachmentRef; data: Uint8Array }>;
-}
-
-/** Route facts the agent/pre-step payload exposes without importing @deepseek-ai/dsh-agent types. */
-interface AgentRoute {
-  provider?: string;
-  model?: string;
-}
-
-interface AgentLike {
-  options?: AgentRoute;
-  session?: {
-    requestHeader?: () => { config?: AgentRoute } | undefined;
-  };
-}
-
-interface AgentPreStepPayload {
-  agent: AgentLike;
-  messages: MessageLike[];
-  turn: number;
-  step: number;
-  signal: AbortSignal;
-}
-
-type PreStepDecision =
-  | { kind: "reject" }
-  | { kind: "enter"; messages: MessageLike[]; startsRequestSeries?: true };
-
-export interface Config {
-  language?: string;
-  passthrough?: boolean;
-  tesseractBin?: string;
-  psm?: number;
-  timeoutMs?: number;
-  maxCacheEntries?: number;
-}
-
-/**
- * Loader-time configuration schema (docs/user/develop/basic/config). The
- * loader validates and fills defaults before apply() runs; apply() keeps its
- * defensive fallbacks so direct callers (tests) see identical behavior.
- */
-export const Config: Schema<Config> = Schema.object({
-  language: Schema.string().default("eng"),
-  passthrough: Schema.boolean().default(false),
-  tesseractBin: Schema.string().default("tesseract"),
-  psm: Schema.number().default(3),
-  timeoutMs: Schema.number().default(60000),
-  maxCacheEntries: Schema.number().default(200),
-});
-
-const EXT_BY_MEDIA: Record<string, string> = {
-  "image/png": "png",
-  "image/jpeg": "jpg",
-  "image/webp": "webp",
-  "image/gif": "gif",
-};
-
-const TEMP_PREFIX = "tesseract-ocr-";
-const MISSING_ATTACHMENT_TEXT =
-  "(OCR: missing attachment — image refused)";
-
-/** Remove temp directories left behind by a previously crashed process. */
-function sweepOrphanTempDirs(): void {
-  let entries: string[];
-  try {
-    entries = readdirSync(tmpdir());
-  } catch {
-    return;
-  }
-  for (const entry of entries) {
-    // Only our own mkdtemp dirs (prefix + 6 random chars): never touch
-    // unrelated files, or symlinks/junctions that share the prefix.
-    const suffix = entry.slice(TEMP_PREFIX.length);
-    if (suffix.length !== 6 || !/^[A-Za-z0-9]{6}$/.test(suffix)) continue;
-    const full = join(tmpdir(), entry);
-    try {
-      if (!lstatSync(full).isDirectory()) continue;
-      rmSync(full, { recursive: true, force: true });
-    } catch {
-      // A concurrent OCR may own it; its own finally will clean up.
-    }
-  }
-}
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-/**
- * Split a CLI spec into argv tokens, respecting double/single quotes so
- * Windows paths like `"C:\Program Files\Tesseract-OCR\tesseract.exe"` work.
- * Unquoted whitespace still separates prefix args (for test mocks:
- * `node /path/to/mock.mjs`).
- */
-export function parseCommandSpec(spec: string): string[] {
-  const tokens: string[] = [];
-  const re = /"([^"]*)"|'([^']*)'|(\S+)/g;
-  let match: RegExpExecArray | null;
-  while ((match = re.exec(spec)) !== null) {
-    const token = match[1] ?? match[2] ?? match[3];
-    if (token !== undefined && token.length > 0) tokens.push(token);
-  }
-  return tokens;
-}
-
-/** Wait for a child to exit after timeout/kill, so temp files can be unlinked. */
-async function terminateChild(child: ChildProcess): Promise<void> {
-  if (child.exitCode !== null || child.signalCode !== null) return;
-
-  const closed = new Promise<void>((resolve) => {
-    child.once("close", () => resolve());
-  });
-
-  try {
-    if (process.platform === "win32" && typeof child.pid === "number") {
-      spawn("taskkill", ["/pid", String(child.pid), "/t", "/f"], {
-        windowsHide: true,
-        stdio: "ignore",
-      }).unref();
-    } else {
-      try {
-        child.kill("SIGTERM");
-      } catch {
-        // already gone
-      }
-      void sleep(500).then(() => {
-        if (child.exitCode === null && child.signalCode === null) {
-          try {
-            child.kill("SIGKILL");
-          } catch {
-            // already gone
-          }
-        }
-      });
-    }
-  } catch {
-    // best-effort
-  }
-
-  await Promise.race([closed, sleep(2000)]);
-}
-
-async function removeTempDir(
-  dir: string,
-  warn?: (message: string, ...args: unknown[]) => void,
-): Promise<void> {
-  try {
-    await fs.rm(dir, { recursive: true, force: true });
-    return;
-  } catch (error) {
-    warn?.(
-      "[tesseract-ocr] temp dir remove failed (retrying): %s (%s)",
-      dir,
-      error instanceof Error ? error.message : String(error),
-    );
-  }
-  await sleep(200);
-  try {
-    await fs.rm(dir, { recursive: true, force: true });
-  } catch (error) {
-    warn?.(
-      "[tesseract-ocr] temp dir remove failed: %s (%s)",
-      dir,
-      error instanceof Error ? error.message : String(error),
-    );
-  }
-}
-
-export function apply(ctx: Context, config: Config = {}): void {
+export function apply(ctx: Context, config: PluginConfig = {}): void {
   const language =
     typeof config.language === "string" && config.language.length > 0
       ? config.language
       : "eng";
-  // Privacy-first default: OCR every image unless the admin explicitly opts
-  // into vision-model passthrough.
   const passthrough = config.passthrough === true;
   const tesseractBin =
     typeof config.tesseractBin === "string" && config.tesseractBin.length > 0
@@ -300,250 +53,30 @@ export function apply(ctx: Context, config: Config = {}): void {
 
   sweepOrphanTempDirs();
 
-  // --- 1. Capability shim --------------------------------------------------
+  const shim = installCapabilityShim(llm);
 
-  const origResolveModelInfo = llm.resolveModelInfo;
-  const boundResolveModelInfo = origResolveModelInfo.bind(llm);
-  const resolveModelInfoShim: LlmService["resolveModelInfo"] = async function (
-    provider,
-    model,
-    signal,
-  ) {
-    const info = await boundResolveModelInfo(provider, model, signal);
-    if (info?.inputModalities && !info.inputModalities.includes("image")) {
-      return { ...info, inputModalities: [...info.inputModalities, "image"] };
-    }
-    return info;
-  };
-  llm.resolveModelInfo = resolveModelInfoShim;
+  const ocrEngine = new TesseractOcrEngine({
+    language,
+    tesseractBin,
+    psm,
+    timeoutMs,
+    maxCacheEntries,
+    getAttachmentStore: () => ctx.get("attachments") as AttachmentStore | undefined,
+    warn: ctx.logger?.warn?.bind(ctx.logger),
+  });
 
-  const origListModels = llm.listModels;
-  const boundListModels = origListModels.bind(llm);
-  const listModelsShim: LlmService["listModels"] = async function (provider) {
-    const models = await boundListModels(provider);
-    return models.map((model) =>
-      model?.inputModalities && !model.inputModalities.includes("image")
-        ? { ...model, inputModalities: [...model.inputModalities, "image"] }
-        : model,
-    );
-  };
-  llm.listModels = listModelsShim;
-
-  // Pre-shim truth, used to decide OCR vs passthrough.
-  async function nativeImageSupport(provider: string, model: string): Promise<boolean> {
-    try {
-      const info = await boundResolveModelInfo(provider, model);
-      return Boolean(info?.inputModalities?.includes("image"));
-    } catch {
-      return false; // unresolvable route -> treat as text model (OCR)
-    }
-  }
-
-  // --- 2. OCR ---------------------------------------------------------------
-
-  // attachmentId -> Promise<string>; failed results are evicted so a later
-  // request can retry, and a failure degrades to a placeholder instead of
-  // failing the conversation.
-  const ocrCache = new Map<string, Promise<string>>();
-
-  async function ocrText(ref: ImageAttachmentRef): Promise<string> {
-    const key = String(ref.attachmentId);
-    let pending = ocrCache.get(key);
-    if (pending) return pending;
-    pending = (async () => {
-      const store = ctx.get("attachments") as AttachmentStore | undefined;
-      if (!store) throw new Error("attachment service unavailable");
-      const stored = await store.readImage(ref);
-      const text = await runOcr(stored.data, ref.mediaType);
-      return text.trim().length > 0 ? text : "(OCR: no text recognized)";
-    })().catch((error: unknown) => {
-      ocrCache.delete(key);
-      ctx.logger?.warn?.(
-        "[tesseract-ocr] OCR failed for %s: %s",
-        key,
-        error instanceof Error ? error.message : String(error),
-      );
-      return "(OCR: failed to recognize this image)";
-    });
-    ocrCache.set(key, pending);
-    if (ocrCache.size > maxCacheEntries) {
-      const oldest = ocrCache.keys().next().value;
-      if (oldest !== undefined) ocrCache.delete(oldest);
-    }
-    return pending;
-  }
-
-  async function runOcr(bytes: Uint8Array, mediaType: string): Promise<string> {
-    // Fresh temp dir per OCR run; removed in finally (success, error, timeout).
-    const dir = await fs.mkdtemp(join(tmpdir(), TEMP_PREFIX));
-    const imagePath = join(dir, `input.${EXT_BY_MEDIA[mediaType] ?? "png"}`);
-    let child: ChildProcess | undefined;
-    try {
-      // Security: fixed filename inside a fresh mkdtemp dir; the extension
-      // comes from the EXT_BY_MEDIA whitelist with a png fallback. No
-      // user-controlled path reaches here.
-      await fs.writeFile(imagePath, bytes);
-      // tesseractBin may carry prefix args, e.g. "tesseract",
-      // "/usr/bin/tesseract", quoted Windows paths with spaces, or (for tests)
-      // "node /path/to/mock.mjs".
-      const tokens = parseCommandSpec(tesseractBin);
-      const bin = tokens[0];
-      const prefixArgs = tokens.slice(1);
-      if (!bin) throw new Error("tesseractBin is empty");
-      const args = [...prefixArgs, imagePath, "stdout", "-l", language, "--psm", String(psm)];
-      // Security: argv-array spawn without a shell — no command injection.
-      // The binary and every argument come from admin configuration and
-      // mkdtemp paths, never from model or attachment content. Do not
-      // switch to a string command or `shell: true`.
-      return await new Promise<string>((resolve, reject) => {
-        child = spawn(bin, args, {
-          windowsHide: true,
-          stdio: ["ignore", "pipe", "pipe"],
-        });
-        let stdout = "";
-        let stderr = "";
-        let settled = false;
-        const settle = (fn: (value: string) => void, value: string) => {
-          if (settled) return;
-          settled = true;
-          clearTimeout(timer);
-          fn(value);
-        };
-        const settleErr = (error: Error) => {
-          if (settled) return;
-          settled = true;
-          clearTimeout(timer);
-          reject(error);
-        };
-        child.stdout?.on("data", (chunk: Buffer) => {
-          stdout += chunk;
-        });
-        child.stderr?.on("data", (chunk: Buffer) => {
-          stderr += chunk;
-        });
-        const timer = setTimeout(() => {
-          void terminateChild(child!).then(() => {
-            settleErr(new Error("tesseract timed out"));
-          });
-        }, timeoutMs);
-        child.on("error", (error: Error) => {
-          settleErr(error);
-        });
-        child.on("close", (code: number | null) => {
-          if (code === 0) settle(resolve, stdout);
-          else {
-            settleErr(
-              new Error(`tesseract exited with code ${code}: ${stderr.trim().slice(0, 300)}`),
-            );
-          }
-        });
-      });
-    } finally {
-      if (child) await terminateChild(child);
-      await removeTempDir(dir, ctx.logger?.warn?.bind(ctx.logger));
-    }
-  }
-
-  // --- 3. Message rewriting --------------------------------------------------
-
-  function hasImageBlock(content: ContentBlock[] | undefined): boolean {
-    return (
-      Array.isArray(content) &&
-      content.some(
-        (block) =>
-          block?.type === "image" ||
-          (block?.type === "tool-result" && hasImageBlock(block.content)),
-      )
-    );
-  }
-
-  async function rewriteContent(content: ContentBlock[]): Promise<ContentBlock[]> {
-    let out: ContentBlock[] | null = null;
-    for (let i = 0; i < content.length; i++) {
-      const block = content[i];
-      if (block?.type === "image") {
-        if (!out) out = [...content];
-        const ref = block.attachment;
-        // Fail-closed: never leave a raw image block for the adapter.
-        if (!ref) {
-          out[i] = {
-            type: "text",
-            text: `<image_ocr>\n${MISSING_ATTACHMENT_TEXT}\n</image_ocr>`,
-          };
-          continue;
-        }
-        // Do not forward local filenames to the provider — they may contain
-        // personal path/PII information unrelated to recognition quality.
-        out[i] = {
-          type: "text",
-          text: `<image_ocr>\n${await ocrText(ref)}\n</image_ocr>`,
-        };
-      } else if (block?.type === "tool-result" && block.content && hasImageBlock(block.content)) {
-        if (!out) out = [...content];
-        out[i] = { ...block, content: await rewriteContent(block.content) };
-      }
-    }
-    return out ?? content;
-  }
-
-  /** The route that served the last request, falling back to the loop's configured route. */
-  function currentRoute(agent: AgentLike): AgentRoute {
-    const config = agent.session?.requestHeader?.()?.config;
-    if (
-      config &&
-      typeof config.provider === "string" && config.provider &&
-      typeof config.model === "string" && config.model
-    ) {
-      return { provider: config.provider, model: config.model };
-    }
-    const options = agent.options;
-    return {
-      provider:
-        typeof options?.provider === "string" && options.provider
-          ? options.provider
-          : undefined,
-      model:
-        typeof options?.model === "string" && options.model
-          ? options.model
-          : undefined,
-    };
-  }
-
-  async function rewriteMessages(
-    messages: MessageLike[] | undefined,
-    agent: AgentLike,
-  ): Promise<MessageLike[] | undefined> {
-    if (!Array.isArray(messages)) return messages;
-    if (passthrough) {
-      const route = currentRoute(agent);
-      if (route.provider && route.model && (await nativeImageSupport(route.provider, route.model))) {
-        return messages; // genuine vision model: images go through untouched
-      }
-    }
-    let out: MessageLike[] | null = null;
-    for (let i = 0; i < messages.length; i++) {
-      const message = messages[i];
-      if (message && message.content && hasImageBlock(message.content)) {
-        if (!out) out = [...messages];
-        out[i] = { ...message, content: await rewriteContent(message.content) };
-      }
-    }
-    return out ?? messages;
-  }
-
-  // --- 4. Pre-step rewrite ----------------------------------------------------
-  // The agent loop emits `agent/pre-step` once per step, before the model
-  // request is built, with the messages that will enter it. Replacing image
-  // blocks with OCR text here covers every dispatch path (ctx.llm.stream and
-  // prepareCall().stream both build from these messages), independent of how
-  // an adapter dispatches. `prepend` wraps the outermost layer, so the
-  // rewrite applies after other listeners have settled the messages.
   ctx.on(
     "agent/pre-step",
     async (payload, next) => {
       const decision = await next();
       if (decision.kind === "reject") return decision;
-      const messages = await rewriteMessages(decision.messages, payload.agent);
+      const messages = await rewriteMessages(
+        decision.messages,
+        payload.agent,
+        passthrough,
+        shim.nativeImageSupport,
+        ocrEngine,
+      );
       return messages === undefined || messages === decision.messages
         ? decision
         : { ...decision, messages };
@@ -552,13 +85,7 @@ export function apply(ctx: Context, config: Config = {}): void {
   );
 
   ctx.effect(() => () => {
-    ocrCache.clear();
-    // Restore capability shims only if nothing else replaced them after us.
-    if (llm.resolveModelInfo === resolveModelInfoShim) {
-      llm.resolveModelInfo = origResolveModelInfo;
-    }
-    if (llm.listModels === listModelsShim) {
-      llm.listModels = origListModels;
-    }
+    ocrEngine.clear();
+    shim.restore();
   });
 }

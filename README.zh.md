@@ -29,7 +29,7 @@ dsh plugin --profile web add dsh-tesseract-ocr
 
 ```bash
 dsh plugin --profile web add ./dsh-tesseract-ocr        # 源码目录
-dsh plugin --profile web add ./dsh-tesseract-ocr-0.6.0.tgz
+dsh plugin --profile web add ./dsh-tesseract-ocr-0.7.0.tgz
 dsh plugin --profile web add github:maxwell-feng/dsh-tesseract-ocr
 ```
 

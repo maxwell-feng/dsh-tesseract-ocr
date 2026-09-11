@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.7.0] - 2026-09-11
+
+### Changed / 变更
+
+- **Modular TypeScript Architecture Refactoring / 模块化 TypeScript 架构重构**:
+  - Refactored monolithic codebase into dedicated modules following the official DeepSeek Harness plugin development guide.
+  - Separated public types and Cordis event declarations into `src/types.ts`.
+  - Extracted Schemastery validation into `src/config.ts`.
+  - Extracted CLI argument parsing into `src/command-parser.ts` using safe non-regex-exec matching.
+  - Extracted temp directory lifecycle and process tree termination into `src/temp-cleanup.ts`.
+  - Extracted LLM capability shims into `src/capability-shim.ts`.
+  - Extracted Tesseract CLI invocation and cache management into `src/tesseract-engine.ts`.
+  - Extracted agent message inspection and rewriting into `src/pre-step.ts`.
+  - Exported unified plugin entry from `src/index.ts` with backward-compatible API.
+  - Recompiled and verified all 20 pipeline tests pass.
+
 ## [0.6.0] - 2026-09-11
 
 ### Compatibility / 兼容性

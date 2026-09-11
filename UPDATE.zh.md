@@ -16,7 +16,7 @@ dsh plugin --profile web update dsh-tesseract-ocr@latest
 ```
 或指定版本：
 ```bash
-dsh plugin --profile web add dsh-tesseract-ocr@0.6.0
+dsh plugin --profile web add dsh-tesseract-ocr@0.7.0
 ```
 
 ### 从 Git 仓库升级
@@ -33,7 +33,7 @@ dsh plugin --profile web add github:maxwell-feng/dsh-tesseract-ocr
 
 ### 从 Tarball 升级
 ```bash
-dsh plugin --profile web add ./dsh-tesseract-ocr-0.6.0.tgz
+dsh plugin --profile web add ./dsh-tesseract-ocr-0.7.0.tgz
 ```
 
 ---
