@@ -1,6 +1,6 @@
 {
   "name": "dsh-tesseract-ocr",
-  "version": "0.8.0",
+  "version": "0.8.1",
   "description": "dsh plugin: recognize attached images locally with Tesseract OCR and send only the recognized text to the model. Text models never receive image bytes; vision passthrough is opt-in.",
   "type": "module",
   "main": "lib/index.js",
@@ -21,6 +21,7 @@
     "UNINSTALL.md",
     "UNINSTALL.zh.md",
     "CHANGELOG.md",
+    "CHANGELOG.zh.md",
     "LICENSE"
   ],
   "scripts": {

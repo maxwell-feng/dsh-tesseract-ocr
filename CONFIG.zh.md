@@ -2,6 +2,8 @@
 
 [English](CONFIG.md) | 简体中文
 
+> 已在 DeepSeek Harness **0.1.5-rc.2** 上随 `dsh-tesseract-ocr` **0.8.1** 完成全面验证。
+
 本文档详细说明 `dsh-tesseract-ocr` 插件在 DeepSeek Harness 中的全部配置项、默认值与跨平台设置技巧。
 
 ---

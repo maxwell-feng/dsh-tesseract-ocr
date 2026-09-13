@@ -16,7 +16,7 @@ dsh plugin --profile web update dsh-tesseract-ocr@latest
 ```
 或指定版本：
 ```bash
-dsh plugin --profile web add dsh-tesseract-ocr@0.8.0
+dsh plugin --profile web add dsh-tesseract-ocr@0.8.1
 ```
 
 ### 从 Git 仓库升级
