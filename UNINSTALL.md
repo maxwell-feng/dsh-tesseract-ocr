@@ -2,6 +2,8 @@
 
 English | [简体中文](UNINSTALL.zh.md)
 
+> Verified against DeepSeek Harness **0.1.5-rc.2** with `dsh-tesseract-ocr` **0.8.1**.
+
 This document explains how to completely uninstall `dsh-tesseract-ocr` from your DeepSeek Harness profiles.
 
 ---

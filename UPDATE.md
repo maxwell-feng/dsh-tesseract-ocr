@@ -16,7 +16,7 @@ dsh plugin --profile web update dsh-tesseract-ocr@latest
 ```
 or pin version:
 ```bash
-dsh plugin --profile web add dsh-tesseract-ocr@0.8.0
+dsh plugin --profile web add dsh-tesseract-ocr@0.8.1
 ```
 
 ### Upgrading via Git Checkout
